@@ -1,0 +1,236 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+#Load packages
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(leaflet)
+```
+
+#Load coordinate data 
+
+```{r}
+coords <- read_csv("data/site_coords.csv")
+```
+
+#Format data
+
+```{r}
+coords <- separate(coords, col = "WKT", into = c("geometry_type", "lon_lat"), sep = "\\(", remove = FALSE)
+
+# Remove the extra characters from the lon_lat column
+coords$lon_lat <- gsub("\\)", "", coords$lon_lat)
+
+# Separate lon and lat into their own columns
+coords <- separate(coords, col = "lon_lat", into = c("lon", "lat"), sep = " ")
+
+# Convert lon and lat columns to numeric
+coords$lon <- as.numeric(coords$lon)
+coords$lat <- as.numeric(coords$lat)
+
+coords_clean <- coords %>% 
+  select(lon, lat)
+```
+
+#Make icons
+
+```{r}
+imp_icon <- makeIcon(
+  iconUrl = "icons/bvag.svg",
+  iconWidth = 40, iconHeight = 40,
+  iconAnchorX = 22, iconAnchorY = 39
+)
+
+rufo_icon <- makeIcon(
+  iconUrl = "icons/brufo.svg",
+  iconWidth = 40, iconHeight = 40,
+  iconAnchorX = 22, iconAnchorY = 39
+)
+
+tern_icon <- makeIcon(
+  iconUrl = "icons/btern.svg",
+  iconWidth = 40, iconHeight = 40,
+  iconAnchorX = 22, iconAnchorY = 39
+)
+
+vag_icon <- makeIcon(
+  iconUrl = "icons/bimp.svg",
+  iconWidth = 40, iconHeight = 40,
+  iconAnchorX = 22, iconAnchorY = 39
+)
+
+```
+
+
+#Make map
+
+```{r}
+leaflet(options = leafletOptions(zoomControl = FALSE)) %>% 
+  setView(lng = -75.65290, lat = 45.39082, zoom = 10.5) %>% 
+  addProviderTiles(providers$CartoDB.VoyagerLabelsUnder) %>% 
+  addCircleMarkers(color = "#36454F",
+                   stroke = FALSE,
+                   radius = 8,
+                   fillOpacity = 0.8,
+                   lng = -75.79672,
+                   lat = 45.32857,
+                   label = "BP",
+                   labelOptions = labelOptions(noHide = T,
+                                               textOnly = TRUE,
+                                               direction = "bottom",
+                                               offset = c(0, -4),
+                                               style = list("font-style" = "bold",
+                                                            "font-size" = "12px"
+      ))) %>%
+  addMarkers(lng = -75.80912, lat = 45.33357, icon = imp_icon, ) %>% 
+  addMarkers(lng = -75.78202, lat = 45.33357, icon = vag_icon) %>% 
+
+    addCircleMarkers(color = "#36454F",
+                   stroke = FALSE,
+                   radius = 8,
+                   fillOpacity = 0.8,
+                   lng = -75.79874,
+                   lat = 45.37082,
+                   label = "ML",
+                   labelOptions = labelOptions(noHide = T,
+                                               textOnly = TRUE,
+                                               direction = "bottom",
+                                               offset = c(0, -4),
+                                               style = list("font-style" = "bold",
+                                                            "font-size" = "12px"
+      ))) %>%
+  addMarkers(lng = -75.83800, lat = 45.37582, icon = imp_icon, ) %>% 
+  addMarkers(lng = -75.81074, lat = 45.37582, icon = rufo_icon) %>% 
+  addMarkers(lng = -75.78274, lat = 45.37582, icon = tern_icon) %>%
+  addMarkers(lng = -75.75574, lat = 45.37582, icon = vag_icon) %>%
+   
+    addCircleMarkers(color = "#36454F",
+                   stroke = FALSE,
+                   radius = 8,
+                   fillOpacity = 0.8,
+                   lng = -75.70224,
+                   lat = 45.27420,
+                   label = "CM",
+                   labelOptions = labelOptions(noHide = T,
+                                               textOnly = TRUE,
+                                               direction = "bottom",
+                                               offset = c(0, -4),
+                                               style = list("font-style" = "bold",
+                                                            "font-size" = "12px"
+      ))) %>% 
+  addMarkers(lng = -75.72824, lat = 45.27920, icon = imp_icon, ) %>% 
+  addMarkers(lng = -75.70224, lat = 45.27920, icon = rufo_icon) %>% 
+  addMarkers(lng = -75.67524, lat = 45.27920, icon = tern_icon) %>% 
+    addCircleMarkers(color = "#36454F",
+                   stroke = FALSE,
+                   radius = 8,
+                   fillOpacity = 0.8,
+                   lng = -75.49855,
+                   lat = 45.50132,
+                   label = "PI",
+                   labelOptions = labelOptions(noHide = T,
+                                               textOnly = TRUE,
+                                               direction = "bottom",
+                                               offset = c(0, -4),
+                                               style = list("font-style" = "bold",
+                                                            "font-size" = "12px"
+      ))) %>%
+   addMarkers(lng = -75.51155, lat = 45.50632, icon = imp_icon, ) %>% 
+  addMarkers(lng = -75.48355, lat = 45.50632, icon = vag_icon) %>% 
+    addCircleMarkers(color = "#36454F",
+                  stroke = FALSE,
+                   radius = 8,
+                   fillOpacity = 0.8,
+                   lng = -75.51290,
+                   lat = 45.39297,
+                   label = "MB",
+                   labelOptions = labelOptions(noHide = T,
+                                               textOnly = TRUE,
+                                               direction = "bottom",
+                                               offset = c(0, -4),
+                                               style = list("font-style" = "bold",
+                                                            "font-size" = "12px"
+      ))) %>%
+  addMarkers(lng = -75.52690, lat = 45.39797, icon = imp_icon) %>% 
+  addMarkers(lng = -75.49990, lat = 45.39797, icon = tern_icon) %>% 
+
+    addCircleMarkers(color = "#36454F",
+                   stroke = FALSE,
+                   radius = 8,
+                   fillOpacity = 0.8,
+                   lng = -75.70371,
+                   lat = 45.38557,
+                   label = "FG",
+                   labelOptions = labelOptions(noHide = T,
+                                               textOnly = TRUE,
+                                               direction = "bottom",
+                                               offset = c(0, -4),
+                                               style = list("font-style" = "bold",
+                                                            "font-size" = "12px"
+      ))) %>%
+  addMarkers(lng = -75.71471, lat = 45.39057, icon = imp_icon, ) %>% 
+  addMarkers(lng = -75.68871, lat = 45.39057, icon = rufo_icon) %>% 
+
+  #legend
+  addMarkers(lng = -75.48490, lat = 45.33582, icon = imp_icon, 
+             label = "B. impatiens",
+             labelOptions = labelOptions(noHide = T,
+                                         textOnly = TRUE,
+                                         direction = "right",
+                                         offset = c(25, -20),
+                                         style = list("font-style" = "italic",
+                                                      "font-size" = "13px"
+      ))) %>% 
+  addMarkers(lng = -75.48490, lat = 45.31582, icon = rufo_icon, 
+             label = "B. rufocinctus",
+             labelOptions = labelOptions(noHide = T,
+                                         textOnly = TRUE,
+                                         direction = "right",
+                                         offset = c(25, -20),
+                                         style = list("font-style" = "italic",
+                                                      "font-size" = "13px"
+      ))) %>% 
+  addMarkers(lng = -75.48490, lat = 45.29582, icon = tern_icon, 
+             label = "B. ternarius",
+             labelOptions = labelOptions(noHide = T,
+                                         textOnly = TRUE,
+                                         direction = "right",
+                                         offset = c(25, -20),
+                                         style = list("font-style" = "italic",
+                                                      "font-size" = "13px"
+      ))) %>%
+  addMarkers(lng = -75.48490, lat = 45.27582, icon = vag_icon, 
+             label = "B. vagans",
+             labelOptions = labelOptions(noHide = T,
+                                         textOnly = TRUE,
+                                         direction = "right",
+                                         offset = c(25, -20),
+                                         style = list("font-style" = "italic",
+                                                      "font-size" = "13px"
+      ))) %>%
+  addCircleMarkers(color = "#36454F",
+                   stroke = FALSE,
+                   radius = 8,
+                   fillOpacity = 0.01,
+                   lng = -75.48490,
+                   lat = 45.35582,
+                   label = "SPECIES",
+                   labelOptions = labelOptions(noHide = T,
+                                               textOnly = TRUE,
+                                               direction = "bottom",
+                                               offset = c(15, -35),
+                                               style = list("font-style" = "bold",
+                                                            "font-size" = "16px"
+      ))) %>%
+  
+  addScaleBar(position = c("bottomright"), scaleBarOptions(imperial = FALSE))
+
+```
+
+

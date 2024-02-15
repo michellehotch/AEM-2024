@@ -1,0 +1,3923 @@
+---
+title: "R Code"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+#Load packages
+
+```{r}
+library(scales)
+library(devtools)
+library(ggpubr)
+library(ggtext)
+library(MetBrewer)
+library(lme4)
+library(performance)
+library(car)
+library(emmeans)
+library(MASS)
+library(multcomp)
+library(multcompView)
+library(cowplot)
+library(patchwork)
+library(vegan)
+library(ape)
+library(FSA)
+library(stringr)
+
+library(pairwiseAdonis)
+
+library(tidyverse)
+```
+
+#Load data
+
+##Metadata
+
+```{r}
+bee_md <- read_csv("metadata/bee_metadata.csv")
+bee_md <- bee_md %>% 
+  select(bee_id:t_cap)
+
+md_1080 <- read_csv("metadata/metadata_1080.csv")
+
+hit_md <- read_csv("metadata/kegg_hit_md.csv")
+```
+
+##Sequence numbers
+
+```{r}
+seqfilt <- read_csv("data/seq_filtering.csv")
+```
+
+##qPCR
+
+```{r}
+qPCR_master <- read_csv("data/qPCR_master.csv")
+```
+
+##Taxonomy
+
+```{r}
+tax_master <- read_csv("data/MAG_taxonomy_simp.csv")
+tax_master_metab <- read_csv("data/MAG_taxonomy_simp_metab.csv")
+```
+
+##Coverage
+
+```{r}
+cov_drep1070 <- read_csv("data/coverage_drep_1070MAGs.csv")
+```
+
+##Metabolism
+
+```{r}
+metab_1080 <- read.csv("data/MAGs_metab1080_modules.csv")
+hits_1080 <- read.csv("data/MAGs_metab1080_hits.csv")
+metab_enrich_taxa <- read.table("data/micro_taxa2_enrich.txt", sep="\t", header=TRUE)
+beemetab_enrich <- read.table("data/beemetab_enrich.txt", sep="\t", header=TRUE)
+```
+
+
+#Format data
+
+##Metadata
+
+```{r}
+bee_md <- bee_md %>% 
+  mutate(species_origin = paste(species, type, sep = "_")) %>% 
+  mutate(species_label = species_origin) %>% 
+  mutate(subspecies_label = sub_species) %>% 
+  mutate(site_label = site_general)
+
+bee_md$species_label <- recode_factor(bee_md$species_label, impatiens_wild = "Wild B. impatiens", impatiens_commercial = "Commercial B. impatiens", rufocinctus_wild = "B. rufocinctus", ternarius_wild = "B. ternarius", vagans_wild = "B. vagans")
+
+bee_md$species_label <- factor(bee_md$species_label, levels = c("Commercial B. impatiens", "Wild B. impatiens", "B. rufocinctus", "B. ternarius", "B. vagans"))
+
+
+bee_md$subspecies_label <- recode_factor(bee_md$subspecies_label, wild_imp = "Wild B. impatiens", biobest_imp = "BioBest B. impatiens", kopper_imp = "Koppert B. impatiens", rufocinctus = "B. rufocinctus", ternarius = "B. ternarius", vagans = "B. vagans")
+
+bee_md$subspecies_label <- factor(bee_md$subspecies_label, levels = c("BioBest B. impatiens", "Koppert B. impatiens", "Wild B. impatiens", "B. rufocinctus", "B. ternarius", "B. vagans"))
+
+bee_md$site_label <- recode_factor(bee_md$site_label, biobest = "BioBest", koppert = "Koppert", bruce_pit = "BP", chapman_mills = "CM", fletchers = "FG", mer_bleue = "MB", mud_lake = "ML", petrie_island = "PI")
+
+bee_md$site_label <- factor(bee_md$site_label, levels = c("BioBest", "Koppert", "BP", "CM", "FG", "MB", "ML", "PI"))
+```
+
+##Sequence numbers
+
+```{r}
+seqfilt <- seqfilt %>% 
+  mutate(sample_id = recode(sample_id, Bv_PI_1_84 = "Bv_PI_1"))
+
+seqfilt_bee <- seqfilt %>% 
+  full_join(bee_md, join_by("sample_id"=="DNA_id"
+  ))
+
+seqfilt_bee_long <- seqfilt_bee %>% 
+  pivot_longer(post_hostfiltering:number_removed, names_to = "read_data_type", values_to = "number")
+```
+
+##qPCR
+
+Join qPCR data to bee metadata
+
+```{r}
+qpcr_bee <- qPCR_master %>% 
+  full_join(bee_md, join_by("Sample"=="DNA_id"
+  ))
+
+qpcr_bee <- qpcr_bee %>% 
+  mutate(log_total = log10(totalgenecount))
+```
+
+##Coverage
+
+```{r}
+#select desired coverage metric
+cov_drep1070_ra <- cov_drep1070 %>% 
+  dplyr::select(Genome | ends_with("(%)"))
+
+#add taxonomy data
+cov_drep1070_ra_tax <- cov_drep1070_ra %>% 
+  left_join(tax_master, join_by(Genome=="user_genome"))
+
+#add number for each mag of the same genus
+
+cov_drep1070_ra_tax <- cov_drep1070_ra_tax %>% 
+  group_by(species) %>% 
+  mutate(Counter = row_number()) %>% 
+  ungroup() %>% 
+   mutate(species_id = ifelse(table(species)[species] == 1, species, paste(species, Counter, sep = " ")))
+
+
+#pivot longer
+cov_drep1070_ra_tax_long <- cov_drep1070_ra_tax %>% 
+  pivot_longer(cols = ends_with("(%)"),
+               names_to = "bee_id",
+               values_to = "rel_abun")
+
+#rename sample
+cov_drep1070_ra_tax_long <- cov_drep1070_ra_tax_long %>%
+  mutate(bee_id = sub("^([^_]+_[^_]+_[^_]+).*", "\\1", bee_id))
+
+#attach bee metadata
+cov_drep1070_ra_tax_long_bmd <- cov_drep1070_ra_tax_long %>% 
+  left_join(bee_md, join_by(bee_id == "DNA_id"))
+
+
+
+#by genera (with no unmapped for relative abundance)
+cov_drep1070_ra_gen <- cov_drep1070_ra_tax_long_bmd %>% 
+  filter(!(is.na(rel_abun))) %>% 
+  dplyr::filter(!(Genome =="unmapped"|domain =="Archaea")) %>% 
+  dplyr::group_by(bee_id) %>% 
+  dplyr::mutate(sum = sum(rel_abun)) 
+
+cov_drep1070_ra_gen <- cov_drep1070_ra_gen %>% 
+  filter(!(Genome =="unmapped")) %>% 
+  group_by(bee_id, genus) %>% 
+  mutate(sum_gen = sum(rel_abun)) %>% 
+  mutate(relabun_gen = (sum_gen/sum))
+
+#pull only distinct rows
+cov_drep1070_rgm_distinct <- cov_drep1070_ra_gen %>%
+  dplyr::select(bee_id|subspecies_label|type|relabun_gen|genus) %>% 
+  dplyr::distinct() 
+
+#by species (with no unmapped for relative abundance)
+cov_drep1070_ra_spec <- cov_drep1070_ra_tax_long_bmd %>% 
+    filter(!(is.na(rel_abun))) %>% 
+  dplyr::filter(!(Genome =="unmapped"|domain =="Archaea")) %>% 
+  dplyr::group_by(bee_id) %>% 
+  dplyr::mutate(sum = sum(rel_abun)) 
+
+cov_drep1070_ra_spec <- cov_drep1070_ra_spec %>% 
+  filter(!(Genome =="unmapped")) %>% 
+  group_by(bee_id, species.y) %>% 
+  mutate(sum_spec = sum(rel_abun)) %>% 
+  mutate(relabun_spec = (sum_spec/sum))
+
+#new, reordered variable for species
+
+cov_drep1070_ra_spec <- cov_drep1070_ra_spec %>% 
+  mutate(species_order = species.x)
+
+cov_drep1070_ra_spec$species_order <- factor(cov_drep1070_ra_spec$species_order, c("Bifidobacterium", "Bifidobacterium bohemicum", "Bifidobacterium sp024104275", "Arsenophonus apicola", "Gilliamella apicola_A", "Gilliamella apicola_M", "Gilliamella bombi", "Schmidhempelia bombi", "Lactobacillaceae CALYQJ01", "Bombilactobacillus bombi", "Fructobacillus fructosus", "Fructobacillus tropaeoli", "Lactobacillus",  "Lactobacillus bombicola", "Lactobacillus panisapium", "Snodgrassella communis", "Snodgrassella sp024103515", "Apibacter", "Apibacter mensalis"))
+
+
+#by MAG (with no unmapped for relative abundance)
+cov_drep1070_ra_MAG <- cov_drep1070_ra_tax_long_bmd %>% 
+    filter(!(is.na(rel_abun))) %>% 
+  dplyr::filter(!(Genome =="unmapped"|domain =="Archaea")) %>% 
+  dplyr::group_by(bee_id) %>% 
+  dplyr::mutate(sum = sum(rel_abun)) 
+
+cov_drep1070_ra_MAG <- cov_drep1070_ra_MAG %>% 
+  filter(!(Genome =="unmapped")) %>% 
+  group_by(bee_id, species_id) %>% 
+  mutate(sum_mag = sum(rel_abun)) %>% 
+  mutate(relabun_mag = (sum_mag/sum))
+
+cov_drep1070_ra_gen_bmd <- cov_drep1070_ra_gen
+
+```
+
+##Distance matrices - phylotypes
+
+###All hosts
+
+```{r}
+cov_drep1070_ra_gen_prep <- cov_drep1070_ra_gen %>% 
+  dplyr::select(bee_id, genus, relabun_gen) %>% 
+  distinct()
+
+cov_drep1070_pcoa <- cov_drep1070_ra_gen_prep %>% 
+  pivot_wider(names_from = genus, values_from = relabun_gen)
+
+#format matrix
+cov_drep1070_pcoa <- cov_drep1070_pcoa %>%  
+  as.data.frame()
+
+rownames(cov_drep1070_pcoa) <- cov_drep1070_pcoa$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+cov_drep1070_pcoa <- cov_drep1070_pcoa[, -1]
+
+cov_drep1070_pcoa_matrix <- as.matrix(cov_drep1070_pcoa)
+
+#compute distance matrix
+cov_drep1070_pcoabray_matrix <- vegdist(cov_drep1070_pcoa_matrix, "bray")
+
+#perform pcoa
+cov_drep1070_pcoabray <- pcoa(cov_drep1070_pcoabray_matrix)
+
+#extract eigenvalues
+cov_drep1070_pcoabray$values$Relative_eig[1:10]
+#[1] 0.3173 0.2713 
+
+#get vectors into its own tibble with samp_id for sample names
+cov_drep1070_pcoabray_data <- cov_drep1070_pcoabray$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_pcoabray_data <- cov_drep1070_pcoabray_data[,1:3]
+
+#join metadata
+
+cov_drep1070_pcoabray_data <- cov_drep1070_pcoabray_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+
+```
+
+###Wild only
+
+```{r}
+cov_drep1070_ra_gen_wild_prep <- cov_drep1070_ra_gen_bmd %>% 
+  filter(type=="wild") %>% 
+  select(bee_id, genus, relabun_gen) %>% 
+  distinct()
+
+cov_drep1070_wild_pcoa <- cov_drep1070_ra_gen_wild_prep %>% 
+  pivot_wider(names_from = genus, values_from = relabun_gen)
+
+#format matrix
+cov_drep1070_wild_pcoa <- cov_drep1070_wild_pcoa %>%  
+  as.data.frame()
+
+rownames(cov_drep1070_wild_pcoa) <- cov_drep1070_wild_pcoa$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+cov_drep1070_wild_pcoa <- cov_drep1070_wild_pcoa[, -1]
+
+cov_drep1070_wild_pcoa_matrix <- as.matrix(cov_drep1070_wild_pcoa)
+
+#compute distance matrix
+cov_drep1070_wild_pcoabray_matrix <- vegdist(cov_drep1070_wild_pcoa_matrix, "bray")
+
+#perform pcoa
+cov_drep1070_wild_pcoabray <- pcoa(cov_drep1070_wild_pcoabray_matrix)
+
+#extract eigenvalues
+cov_drep1070_wild_pcoabray$values$Relative_eig[1:10]
+#[1] 0.3745 0.2436 
+
+#get vectors into its own tibble with samp_id for sample names
+cov_drep1070_wild_pcoabray_data <- cov_drep1070_wild_pcoabray$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_wild_pcoabray_data <- cov_drep1070_wild_pcoabray_data[,1:3]
+
+#join metadata
+
+cov_drep1070_wild_pcoabray_data <- cov_drep1070_wild_pcoabray_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+
+```
+
+###Commercial colonies
+
+```{r}
+cov_drep1070_ra_gen_comm_prep <- cov_drep1070_ra_gen_bmd %>% 
+  filter(type=="commercial") %>% 
+  select(bee_id, genus, relabun_gen) %>% 
+  distinct()
+
+cov_drep1070_comm_pcoa <- cov_drep1070_ra_gen_comm_prep %>% 
+  pivot_wider(names_from = genus, values_from = relabun_gen)
+
+#format matrix
+cov_drep1070_comm_pcoa <- cov_drep1070_comm_pcoa %>%  
+  as.data.frame()
+
+rownames(cov_drep1070_comm_pcoa) <- cov_drep1070_comm_pcoa$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+cov_drep1070_comm_pcoa <- cov_drep1070_comm_pcoa[, -1]
+
+cov_drep1070_comm_pcoa_matrix <- as.matrix(cov_drep1070_comm_pcoa)
+
+#compute distance matrix
+cov_drep1070_comm_pcoabray_matrix <- vegdist(cov_drep1070_comm_pcoa_matrix, "bray")
+
+#perform pcoa
+cov_drep1070_comm_pcoabray <- pcoa(cov_drep1070_comm_pcoabray_matrix)
+
+#extract eigenvalues
+cov_drep1070_comm_pcoabray$values$Relative_eig[1:10]
+#[1] 0.6800 0.1960 
+
+#get vectors into its own tibble with samp_id for sample names
+cov_drep1070_comm_pcoabray_data <- cov_drep1070_comm_pcoabray$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_comm_pcoabray_data <- cov_drep1070_comm_pcoabray_data[,1:3]
+
+#join metadata
+
+cov_drep1070_comm_pcoabray_data <- cov_drep1070_comm_pcoabray_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+```
+
+##Distance matrices - MAGs
+
+###All hosts
+
+```{r}
+cov_drep1070_ra_MAG_prep <- cov_drep1070_ra_MAG %>% 
+  ungroup() %>% 
+  select(bee_id, Genome, relabun_mag) %>% 
+  distinct()
+
+cov_drep1070_MAG_pcoa <- cov_drep1070_ra_MAG_prep %>% 
+  pivot_wider(names_from = Genome, values_from = relabun_mag)
+
+#format matrix
+cov_drep1070_MAG_pcoa <- cov_drep1070_MAG_pcoa %>%  
+  as.data.frame()
+
+rownames(cov_drep1070_MAG_pcoa) <- cov_drep1070_MAG_pcoa$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+cov_drep1070_MAG_pcoa <- cov_drep1070_MAG_pcoa[, -1]
+
+cov_drep1070_MAG_pcoa_matrix <- as.matrix(cov_drep1070_MAG_pcoa)
+
+#compute distance matrix
+cov_drep1070_MAG_pcoabray_matrix <- vegdist(cov_drep1070_MAG_pcoa_matrix, "bray")
+
+#perform pcoa
+cov_drep1070_MAG_pcoabray <- pcoa(cov_drep1070_MAG_pcoabray_matrix)
+
+#extract eigenvalues
+cov_drep1070_MAG_pcoabray$values$Relative_eig[1:10]
+#[1] 0.2503 0.2241 
+
+#get vectors into its own tibble with samp_id for sample names
+cov_drep1070_MAG_pcoabray_data <- cov_drep1070_MAG_pcoabray$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_MAG_pcoabray_data <- cov_drep1070_MAG_pcoabray_data[,1:3]
+
+#join metadata
+
+cov_drep1070_MAG_pcoabray_data <- cov_drep1070_MAG_pcoabray_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+
+```
+
+###Wild only
+
+```{r}
+cov_drep1070_ra_MAG_wild_prep <- cov_drep1070_ra_MAG %>% 
+  ungroup() %>% 
+  filter(type=="wild") %>% 
+  select(bee_id, Genome, relabun_mag) %>% 
+  distinct()
+
+cov_drep1070_wild_MAG_pcoa <- cov_drep1070_ra_MAG_wild_prep %>% 
+  pivot_wider(names_from = Genome, values_from = relabun_mag)
+
+#format matrix
+cov_drep1070_wild_MAG_pcoa <- cov_drep1070_wild_MAG_pcoa %>%  
+  as.data.frame()
+
+rownames(cov_drep1070_wild_MAG_pcoa) <- cov_drep1070_wild_MAG_pcoa$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+cov_drep1070_wild_MAG_pcoa <- cov_drep1070_wild_MAG_pcoa[, -1]
+
+cov_drep1070_wild_MAG_pcoa_matrix <- as.matrix(cov_drep1070_wild_MAG_pcoa)
+
+#compute distance matrix
+cov_drep1070_wild_MAG_pcoabray_matrix <- vegdist(cov_drep1070_wild_MAG_pcoa_matrix, "bray")
+
+#perform pcoa
+cov_drep1070_wild_MAG_pcoabray <- pcoa(cov_drep1070_wild_MAG_pcoabray_matrix)
+
+#extract eigenvalues
+cov_drep1070_wild_MAG_pcoabray$values$Relative_eig[1:10]
+#[1] 0.2629 0.2501 
+
+#get vectors into its own tibble with samp_id for sample names
+cov_drep1070_wild_MAG_pcoabray_data <- cov_drep1070_wild_MAG_pcoabray$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_wild_MAG_pcoabray_data <- cov_drep1070_wild_MAG_pcoabray_data[,1:3]
+
+#join metadata
+
+cov_drep1070_wild_MAG_pcoabray_data <- cov_drep1070_wild_MAG_pcoabray_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+
+```
+
+###Commercial colonies
+
+```{r}
+cov_drep1070_ra_MAG_comm_prep <- cov_drep1070_ra_MAG %>% 
+  ungroup() %>% 
+  filter(type=="commercial") %>% 
+  select(bee_id, Genome, relabun_mag) %>% 
+  distinct()
+
+cov_drep1070_MAG_comm_pcoa <- cov_drep1070_ra_MAG_comm_prep %>% 
+  pivot_wider(names_from = Genome, values_from = relabun_mag)
+
+#format matrix
+cov_drep1070_MAG_comm_pcoa <- cov_drep1070_MAG_comm_pcoa %>%  
+  as.data.frame()
+
+rownames(cov_drep1070_MAG_comm_pcoa) <- cov_drep1070_MAG_comm_pcoa$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+cov_drep1070_MAG_comm_pcoa <- cov_drep1070_MAG_comm_pcoa[, -1]
+
+cov_drep1070_MAG_comm_pcoa_matrix <- as.matrix(cov_drep1070_MAG_comm_pcoa)
+
+#compute distance matrix
+cov_drep1070_MAG_comm_pcoabray_matrix <- vegdist(cov_drep1070_MAG_comm_pcoa_matrix, "bray")
+
+#perform pcoa
+cov_drep1070_MAG_comm_pcoabray <- pcoa(cov_drep1070_MAG_comm_pcoabray_matrix)
+
+#extract eigenvalues
+cov_drep1070_MAG_comm_pcoabray$values$Relative_eig[1:10]
+#[1] 0.5686 0.2050 
+
+#get vectors into its own tibble with samp_id for sample names
+cov_drep1070_MAG_comm_pcoabray_data <- cov_drep1070_MAG_comm_pcoabray$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_MAG_comm_pcoabray_data <- cov_drep1070_MAG_comm_pcoabray_data[,1:3]
+
+#join metadata
+
+cov_drep1070_MAG_comm_pcoabray_data <- cov_drep1070_MAG_comm_pcoabray_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+```
+
+##Alpha diversity phylotypes
+
+###Chao1
+
+```{r}
+cov_drep1070_rich <- specnumber(cov_drep1070_pcoa)
+
+cov_drep1070_rich_tib <- cov_drep1070_rich %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_rich_data <- bee_md %>% 
+  left_join(cov_drep1070_rich_tib, join_by(DNA_id == "bee_id"))
+```
+
+###Shannon Eveness
+
+```{r}
+cov_drep1070_shann <- vegan::diversity(cov_drep1070_pcoa, index = "shannon")
+
+cov_drep1070_shann_tib <- cov_drep1070_shann %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_shann_data <- bee_md %>% 
+  left_join(cov_drep1070_shann_tib, join_by(DNA_id == "bee_id"))
+```
+
+##Alpha diversity MAGs
+
+###Chao1
+
+```{r}
+cov_drep1070_MAG_rich <- specnumber(cov_drep1070_MAG_pcoa)
+
+cov_drep1070_MAG_rich_tib <- cov_drep1070_MAG_rich %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_MAG_rich_data <- bee_md %>% 
+  left_join(cov_drep1070_MAG_rich_tib, join_by(DNA_id == "bee_id"))
+```
+
+###Shannon Eveness
+
+```{r}
+cov_drep1070_MAG_shann <- vegan::diversity(cov_drep1070_MAG_pcoa, index = "shannon")
+
+cov_drep1070_MAG_shann_tib <- cov_drep1070_MAG_shann %>% 
+  as_tibble(rownames = "bee_id")
+
+cov_drep1070_MAG_shann_data <- bee_md %>% 
+  left_join(cov_drep1070_MAG_shann_tib, join_by(DNA_id == "bee_id"))
+```
+
+##Metabolism data
+
+###Modules
+
+```{r}
+metab_1080_md <- metab_1080 %>% 
+  left_join(md_1080, join_by(db_name == "genome_clean"))
+
+metab_1080_md_counts <- metab_1080_md %>% 
+  filter(stepwise_module_completeness >= 0.75) %>% 
+  add_count(genome, name="all_mods")
+
+metab_1080_md_counts <- metab_1080_md_counts %>% 
+  group_by(genome) %>% 
+  add_count(module_category, name="cat_counts") %>% 
+  add_count(module_subcategory, name="subcat_counts")
+
+metab_1080_md_relcounts <- metab_1080_md_counts %>% 
+  mutate(relc_cat = (cat_counts/all_mods)) %>% 
+  mutate(relc_subcat = (subcat_counts/all_mods))
+
+metab_1080_md_relcounts$genome <- factor(metab_1080_md_relcounts$genome, levels = c("metabat2_Bi_KP3_2_bin_.19", "metabat2_Bi_KP2_2_bin_.15", "maxbin2_Bi_KP1_2_bin.004", "metabat2_Bi_ML_1_bin_.13", "metabat2_Bi_FG_2_bin_.14", "maxbin2_Bi_FG_1_bin.006_sub", "maxbin2_Bi_BP_1_bin.009", "maxbin2_Bi_CM_1_bin.013_sub", "maxbin2_Bi_ML_2_bin.007", "metabat2_Bi_MB_2_bin_.4", "maxbin2_Bt_MB_2_bin.001", "metabat2_Br_CM_1_bin_.1", "maxbin2_Bi_BP_2_bin.017_sub", "maxbin2_Br_ML_1_bin.004", "maxbin2_Bi_BP_1_bin.007", "concoct_Bi_CM_1_bin_37", "maxbin2_Bi_FG_1_bin.007", "maxbin2_Bt_MB_2_bin.004", "maxbin2_Bi_KP1_2_bin.006", "metabat2_Bi_BB3_2_bin_.3", "maxbin2_Bi_BB3_1_bin.003", "concoct_Bi_BB1_2_bin_34", "metabat2_Bi_KP1_2_bin_.4", "maxbin2_Bi_KP3_2_bin.010", "concoct_Bi_KP2_1_bin_9", "concoct_Bi_BB3_1_bin_27_sub", "metabat2_Bi_BP_2_bin_.7", "maxbin2_Bi_CM_1_bin.017", "metabat2_Bi_MB_2_bin_.3", "metabat2_Bi_BP_1_bin_.6", "metabat2_Bi_KP1_1_bin_.5", "metabat2_Bi_ML_2_bin_.9", "metabat2_Bi_ML_1_bin_.3", "metabat2_Bi_KP1_2_bin_.7", "metabat2_Bi_FG_2_bin_.11", "maxbin2_Bi_BB3_1_bin.002", "concoct_Bi_BB1_1_bin_8_sub", "metabat2_Bi_BB3_2_bin_.5_sub", "maxbin2_Bi_BB1_2_bin.005_sub", "maxbin2_Bi_KP2_1_bin.009", "metabat2_Bi_BB1_1_bin_.6_sub", "maxbin2_Bi_BB1_2_bin.006", "concoct_Bi_KP3_2_bin_22_sub", "metabat2_Bi_FG_1_bin_.11", "metabat2_Bi_BP_2_bin_.2", "concoct_Bi_FG_1_bin_16_sub", "concoct_Bi_BP_1_bin_25_sub", "metabat2_Bi_ML_2_bin_.3", "metabat2_Bi_MB_2_bin_.11", "metabat2_Bi_MB_1_bin_.2", "maxbin2_Bi_ML_1_bin.014_sub", "maxbin2_Br_FG_2_bin.004", "maxbin2_Br_FG_1_bin.002_sub", "maxbin2_Br_CM_1_bin.015", "concoct_Bi_BP_2_bin_2_sub", "maxbin2_Bi_CM_1_bin.016_sub", "maxbin2_Bi_ML_2_bin.006", "maxbin2_Bi_KP3_2_bin.003", "maxbin2_Bi_KP2_1_bin.010_sub", "metabat2_Bi_CM_2_bin_.6", "maxbin2_Bi_KP1_1_bin.005", "maxbin2_Bi_BP_1_bin.004", "maxbin2_Bi_FG_2_bin.002", "metabat2_Bi_FG_1_bin_.8", "metabat2_Bi_KP1_2_bin_.3", "maxbin2_Bt_MB_2_bin.003", "maxbin2_Br_CM_1_bin.004", "maxbin2_Br_ML_1_bin.005", "maxbin2_Br_CM_1_bin.017_sub", "maxbin2_Bi_BP_2_bin.010_sub", "metabat2_Bi_MB_2_bin_.1", "metabat2_Bi_MB_1_bin_.4", "concoct_Bi_ML_1_bin_41", "maxbin2_Bi_CM_2_bin.005_sub", "maxbin2_Br_FG_1_bin.006_sub", "concoct_Bi_MB_2_bin_57", "concoct_Bi_FG_1_bin_1", "metabat2_Bi_BP_1_bin_.18", "metabat2_Bi_FG_2_bin_.9", "maxbin2_Br_CM_1_bin.008", "concoct_Bv_ML_2_bin_24", "maxbin2_Bt_MB_2_bin.002", "metabat2_Bi_MB_1_bin_.5", "maxbin2_Bi_MB_2_bin.006_sub", "concoct_Br_ML_2_bin_77", "metabat2_Bi_ML_2_bin_.12_sub", "metabat2_Bi_ML_1_bin_.10", "maxbin2_Br_FG_2_bin.003", "metabat2_Br_FG_1_bin_.6", "maxbin2_Bi_KP3_2_bin.009", "maxbin2_Bi_KP2_1_bin.008", "metabat2_Bi_PI_2_bin_.1", "maxbin2_Bi_BB3_2_bin.003", "concoct_Bi_PI_1_bin_38", "metabat2_Bt_CM_1_bin_.3", "maxbin2_Bv_ML_2_bin.003", "metabat2_Bi_CM_2_bin_.4", "maxbin2_Bi_BP_1_bin.011_sub", "metabat2_Bi_MB_2_bin_.2", "metabat2_Bi_KP1_2_bin_.6", "maxbin2_Bi_CM_1_bin.015_sub", "maxbin2_Bi_BB1_2_bin.004_sub", "concoct_Bi_BB1_1_bin_47"))
+
+metab_1080_bigfig_prep<-metab_1080_md_relcounts %>% 
+  ungroup() %>% 
+  select(species_cluster2|db_name) %>% 
+  distinct() %>% 
+  add_count(species_cluster2, name="clust_total") %>% 
+  select(!(db_name)) %>% 
+  distinct()
+
+metab_1080_bigfig<-metab_1080_md_relcounts %>% 
+  ungroup() %>% 
+  group_by(module_name, species_cluster2) %>% 
+  add_count(module_name, name="clust_modcount") %>% 
+  ungroup() %>% 
+  left_join(metab_1080_bigfig_prep) %>% 
+  mutate(rel_pres = (clust_modcount/clust_total))
+```
+
+
+##MAG metab PCoA
+
+
+```{r}
+metab_1080_pcoa <- metab_1080_bigfig %>% 
+  ungroup() %>% 
+  mutate(stepwise_module_num = 1) %>% 
+  select(db_name, module_name, stepwise_module_num) %>% 
+  distinct()
+
+metab_1080_pcoa <- metab_1080_pcoa %>% 
+  pivot_wider(names_from = module_name, values_from = stepwise_module_num)
+
+metab_1080_pcoa[is.na(metab_1080_pcoa)] <- 0
+
+#format matrix
+metab_1080_pcoa <- metab_1080_pcoa %>%  
+  as.data.frame()
+
+metab_1080_pcoa_order <- metab_1080_pcoa %>% 
+  arrange(db_name)
+
+rownames(metab_1080_pcoa_order) <- metab_1080_pcoa_order$db_name #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+metab_1080_pcoa_order <- metab_1080_pcoa_order[, -1]
+
+metab_1080_pcoa_matrix <- as.matrix(metab_1080_pcoa_order)
+
+#compute distance matrix
+metab_1080_pcoajacc_matrix <- vegdist(metab_1080_pcoa_matrix, "jaccard")
+
+#perform pcoa
+metab_1080_pcoajacc <- pcoa(metab_1080_pcoajacc_matrix)
+
+#extract eigenvalues
+metab_1080_pcoajacc$values$Relative_eig[1:10]
+#[1] 0.424 0.212
+
+#get vectors into its own tibble with samp_id for sample names
+metab_1080_pcoajacc_data <- metab_1080_pcoajacc$vectors %>% 
+  as_tibble(rownames = "db_name")
+
+metab_1080_pcoajacc_data <- metab_1080_pcoajacc_data[,1:3]
+
+#join metadata
+
+metab_1080_md_simp <- metab_1080_md %>% 
+  select(db_name|species_cluster2) %>% 
+  distinct()
+
+metab_1080_pcoajacc_data <- metab_1080_pcoajacc_data %>% 
+  left_join(metab_1080_md_simp)
+```
+
+
+##Enrichment 
+
+###MAG clusters
+
+```{r}
+#split and recombine associated groups
+
+enrich_taxa_data_fix <- separate(metab_enrich_taxa, associated_groups, into = c("treatment1", "treatment2", "treatment3", "treatment4", "treatment5", "treatment6", "treatment7", "treatment8", "treatment9", "treatment10", "treatment11", "treatment12", "treatment13", "treatment14", "treatment15", "treatment16", "treatment17", "treatment18", "treatment19", "treatment20", "treatment21", "treatment22", "treatment23", "treatment24", "treatment25", "treatment26", "treatment27", "treatment28", "treatment29"), sep = ",", extra = "merge")
+
+enrich_taxa_data_fix<- gather(enrich_taxa_data_fix, key = "treatment", value = "associated_groups", treatment1:treatment29)
+
+enrich_taxa_data_fix <- enrich_taxa_data_fix %>% 
+  filter(!(is.na(associated_groups)))
+
+enrich_mod_metadata<-metab_1080_md %>% 
+  ungroup() %>% 
+  select(module_name|module_category|module_subcategory) %>% 
+  distinct()
+  
+#join metadata to enrichment results
+enrich_taxa_data_fix <- left_join(enrich_taxa_data_fix, enrich_mod_metadata, by=join_by(MODULE==module_name))
+
+
+#filter insignificant results
+enrich_taxa_data_clean <- enrich_taxa_data_fix %>% 
+  filter(unadjusted_p_value < 0.05)
+```
+
+##Bee metabolism
+
+###Modules
+
+```{r}
+#get data on module presence in MAG clusters, and rename rel_pres
+bee_metab_md1<-metab_1080_bigfig %>% 
+  select(module_name|module_category|species_cluster2|species_clust_short|module|rel_pres) %>% 
+  rename(rel_pres_in_MAGclust = rel_pres)
+
+#based on threshold of >1% RA, determine which taxa are present in each bee
+bee_metab_md3<-cov_drep1070_ra_MAG %>% 
+  select(bee_id|subspecies_label|species_id|relabun_mag) %>% 
+  group_by(bee_id, species_id) %>% 
+  mutate(sum_relabun = sum(relabun_mag)) %>% 
+  filter(sum_relabun > 0.01) %>% 
+  select(!(relabun_mag)) %>% 
+  ungroup() %>% 
+  distinct() %>% 
+  mutate(clust_present = "TRUE") 
+
+#join so that we have all modules present in all MAGs in all bees
+bee_metab_md4 <- bee_metab_md3 %>% 
+  full_join(bee_metab_md1, join_by(species_id == "species_cluster2"), relationship = "many-to-many") %>% 
+  distinct()
+
+#calculate the minimum prob of presence in each bee for each module
+bee_metab_md5 <- 
+bee_metab_md4 %>% 
+  ungroup() %>% 
+  mutate(prob_notpres_inMAGclus = (1-rel_pres_in_MAGclust)) %>% 
+  group_by(bee_id, module_name) %>% 
+  mutate(prob_pres_inbee = (1-prod(across(prob_notpres_inMAGclus))))
+
+#calculate how many MAG clusters per bee have the module (>0.75 rel mag presence)
+bee_metab_md5_redun <- 
+bee_metab_md5 %>% 
+  ungroup() %>% 
+  select(bee_id|module_name|species_id|rel_pres_in_MAGclust) %>% 
+  group_by(module_name, bee_id) %>% 
+  add_count(module_name, name="redun_count_75", wt = if_else(rel_pres_in_MAGclust >= 0.75, 1, 0)) %>% 
+  ungroup() %>% 
+  select(bee_id|module_name|redun_count_75) %>% 
+  distinct()
+  
+#count how many bees in each species, make that a dataframe
+bee_metab_md5_beecount <- bee_metab_md5 %>% 
+  ungroup() %>% 
+  select(subspecies_label, bee_id) %>% 
+  distinct() %>% 
+  add_count(subspecies_label, name="bee_count") %>% 
+  select(!(bee_id)) %>% 
+  distinct()
+
+#count how many bees each function is present in, and then divide by the total number of bees
+bee_metab_md5_percobees <- 
+  bee_metab_md5 %>% 
+  ungroup() %>% 
+  select(module_name, subspecies_label, bee_id, prob_pres_inbee) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  group_by(module_name, subspecies_label) %>% 
+  add_count(module_name, name="func_count") %>% 
+  left_join(bee_metab_md5_beecount) %>% 
+  mutate(perc_of_bees = func_count/bee_count)
+
+#get everything together and get distinct rows
+bee_metab_md6 <- bee_metab_md5 %>% 
+  ungroup() %>% 
+  left_join(bee_metab_md5_percobees) %>% 
+  left_join(bee_metab_md5_redun) %>% 
+  group_by(subspecies_label, module_name) %>% 
+  mutate(av_prob_pres_inbee = mean(prob_pres_inbee)) %>% 
+  mutate(av_redun_bymag = mean(redun_count_75)) %>% 
+  select(bee_id|subspecies_label|module_category|module_name|prob_pres_inbee|av_prob_pres_inbee|perc_of_bees|bee_count|av_redun_bymag) %>% 
+  distinct()
+
+#calculate percent of bees per species that has >0.75 min prob, we're changing the visualization
+bee_metab_md6_75 <- bee_metab_md6 %>% 
+  ungroup() %>% 
+  group_by(module_name, subspecies_label) %>% 
+  add_count(module_name, name="func_count_75", wt = if_else(prob_pres_inbee >= 0.75, 1, 0)) %>% 
+  mutate(perc_of_bees_75 = func_count_75/bee_count)
+
+bee_metab_md6_75_final <- bee_metab_md6_75 %>% 
+  ungroup() %>% 
+  select(subspecies_label|module_category|module_name|av_prob_pres_inbee|perc_of_bees_75|av_redun_bymag) %>%
+  distinct() 
+
+
+bee_metab_md_final <- bee_metab_md6 %>% 
+  ungroup() %>% 
+  select(subspecies_label|module_category|module_name|av_prob_pres_inbee|perc_of_bees|av_redun_bymag) %>%
+  distinct() 
+```
+
+
+##Function PCoA
+
+###All hosts
+
+```{r}
+bee_metab_div <- bee_metab_md6 %>% 
+  filter(prob_pres_inbee >=0.75) %>% 
+  mutate(func_pres = 1)
+
+bee_metab_div_prep <- bee_metab_div %>% 
+  ungroup() %>% 
+  select(bee_id, module_name, func_pres) %>% 
+  distinct()
+
+bee_metab_div_pcoa <- bee_metab_div_prep %>% 
+  pivot_wider(names_from = module_name, values_from = func_pres)
+
+bee_metab_div_pcoa[is.na(bee_metab_div_pcoa)] <- 0
+
+#format matrix
+bee_metab_div_pcoa <- bee_metab_div_pcoa %>%  
+  as.data.frame()
+
+bee_metab_div_pcoa_order <- bee_metab_div_pcoa %>% 
+  arrange(bee_id)
+
+rownames(bee_metab_div_pcoa_order) <- bee_metab_div_pcoa_order$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+bee_metab_div_pcoa_order <- bee_metab_div_pcoa_order[, -1]
+
+bee_metab_div_pcoa_matrix <- as.matrix(bee_metab_div_pcoa_order)
+
+#compute distance matrix
+bee_metab_div_pcoajacc_matrix <- vegdist(bee_metab_div_pcoa_matrix, "jaccard")
+
+#perform pcoa
+bee_metab_div_pcoajacc <- pcoa(bee_metab_div_pcoajacc_matrix)
+
+#extract eigenvalues
+bee_metab_div_pcoajacc$values$Relative_eig[1:10]
+#[1] 0.541 0.212
+
+#get vectors into its own tibble with samp_id for sample names
+bee_metab_div_pcoajacc_data <- bee_metab_div_pcoajacc$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+bee_metab_div_pcoajacc_data <- bee_metab_div_pcoajacc_data[,1:3]
+
+#join metadata
+
+bee_metab_div_pcoajacc_data <- bee_metab_div_pcoajacc_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+
+```
+
+###Wild only
+
+```{r}
+bee_metab_div_wild_prep <- bee_metab_div %>% 
+  ungroup() %>% 
+  filter(!(subspecies_label=="BioBest B. impatiens"|subspecies_label=="Koppert B. impatiens")) %>% 
+  select(bee_id, module_name, func_pres) %>% 
+  distinct()
+
+bee_metab_div_wild_pcoa <- bee_metab_div_wild_prep %>% 
+  pivot_wider(names_from = module_name, values_from = func_pres)
+
+bee_metab_div_wild_pcoa[is.na(bee_metab_div_wild_pcoa)] <- 0
+
+#format matrix
+bee_metab_div_wild_pcoa <- bee_metab_div_wild_pcoa %>%  
+  as.data.frame()
+
+
+
+rownames(bee_metab_div_wild_pcoa) <- bee_metab_div_wild_pcoa$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+bee_metab_div_wild_pcoa <- bee_metab_div_wild_pcoa[, -1]
+
+bee_metab_div_wild_pcoa_matrix <- as.matrix(bee_metab_div_wild_pcoa)
+
+#compute distance matrix
+bee_metab_div_wild_pcoajacc_matrix <- vegdist(bee_metab_div_wild_pcoa_matrix, "jaccard")
+
+#perform pcoa
+bee_metab_div_wild_pcoajacc <- pcoa(bee_metab_div_wild_pcoajacc_matrix)
+
+#extract eigenvalues
+bee_metab_div_wild_pcoajacc$values$Relative_eig[1:10]
+#[1] 0.567 0.193
+
+#get vectors into its own tibble with samp_id for sample names
+bee_metab_div_wild_pcoajacc_data <- bee_metab_div_wild_pcoajacc$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+bee_metab_div_wild_pcoajacc_data <- bee_metab_div_wild_pcoajacc_data[,1:3]
+
+#join metadata
+
+bee_metab_div_wild_pcoajacc_data <- bee_metab_div_wild_pcoajacc_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+
+```
+
+
+###Comm only
+
+```{r}
+bee_metab_div_comm_prep <- bee_metab_div %>% 
+  ungroup() %>% 
+  filter(subspecies_label=="BioBest B. impatiens"|subspecies_label=="Koppert B. impatiens") %>% 
+  select(bee_id, module_name, func_pres) %>% 
+  distinct()
+
+bee_metab_div_comm_pcoa <- bee_metab_div_comm_prep %>% 
+  pivot_wider(names_from = module_name, values_from = func_pres)
+
+bee_metab_div_comm_pcoa[is.na(bee_metab_div_comm_pcoa)] <- 0
+
+#format matrix
+bee_metab_div_comm_pcoa <- bee_metab_div_comm_pcoa %>%  
+  as.data.frame()
+
+
+
+rownames(bee_metab_div_comm_pcoa) <- bee_metab_div_comm_pcoa$bee_id #instead of 1-16, now it's the bee_ids coded into the row names so they're not part of the matrix
+
+bee_metab_div_comm_pcoa <- bee_metab_div_comm_pcoa[, -1]
+
+bee_metab_div_comm_pcoa_matrix <- as.matrix(bee_metab_div_comm_pcoa)
+
+#compute distance matrix
+bee_metab_div_comm_pcoajacc_matrix <- vegdist(bee_metab_div_comm_pcoa_matrix, "jaccard")
+
+#perform pcoa
+bee_metab_div_comm_pcoajacc <- pcoa(bee_metab_div_comm_pcoajacc_matrix)
+
+#extract eigenvalues
+bee_metab_div_comm_pcoajacc$values$Relative_eig[1:10]
+#[1] 0.567 0.193
+
+#get vectors into its own tibble with samp_id for sample names
+bee_metab_div_comm_pcoajacc_data <- bee_metab_div_comm_pcoajacc$vectors %>% 
+  as_tibble(rownames = "bee_id")
+
+bee_metab_div_comm_pcoajacc_data <- bee_metab_div_comm_pcoajacc_data[,1:3]
+
+#join metadata
+
+bee_metab_div_comm_pcoajacc_data <- bee_metab_div_comm_pcoajacc_data %>% 
+  left_join(bee_md, join_by(bee_id==DNA_id))
+
+```
+
+
+##Funtional richness
+
+```{r}
+bee_metab_div_rich <- specnumber(bee_metab_div_pcoa_order)
+
+bee_metab_div_rich_tib <- bee_metab_div_rich %>% 
+  as_tibble(rownames = "bee_id")
+
+bee_metab_div_rich_data <- bee_md %>% 
+  left_join(bee_metab_div_rich_tib, join_by(DNA_id == "bee_id"))
+```
+
+##Prep for anvi-enrichment file
+
+###Modules
+
+```{r}
+keggmod_md<-metab_1080 %>% 
+  select(module|module_name:module_definition) %>% 
+  distinct()
+
+beemetab_anvienrich_prep <- bee_metab_md6 %>% 
+  left_join(keggmod_md) %>% 
+  mutate(stepwise_module_is_complete = case_when(prob_pres_inbee >= 0.75 ~ "TRUE", 
+                               prob_pres_inbee < 0.75 ~ "FALSE"))
+
+write.csv(beemetab_anvienrich_prep, "output/beemetab_anvienrich_prep.csv")
+```
+
+
+##Bee enrichment
+
+###Modules
+
+```{r}
+beemetab_enrich <- beemetab_enrich %>% 
+  mutate(enrich_yn = case_when(adjusted_q_value < 0.05 ~ "YES", 
+                               adjusted_q_value >= 0.05 ~ "NO"))
+
+
+beemetab_enrich_yes <- beemetab_enrich %>% 
+  filter(enrich_yn=="YES")
+  
+beemetab_enrich_no <- beemetab_enrich %>% 
+  filter(enrich_yn=="NO")  
+
+
+beemetab_enrich_fix <- separate(beemetab_enrich_yes, associated_groups, into = c("treatment1", "treatment2", "treatment3", "treatment4", "treatment5", "treatment6"), sep = ",", extra = "merge")
+
+beemetab_enrich_fix<- gather(beemetab_enrich_fix, key = "treatment", value = "associated_groups", treatment1:treatment6)
+
+beemetab_enrich_fix <- beemetab_enrich_fix %>% 
+  filter(!(is.na(associated_groups)))
+
+enrich_mod_metadata<-metab_1080_md %>% 
+  ungroup() %>% 
+  select(module_name|module_category|module_subcategory) %>% 
+  distinct()
+  
+bee_md_speciesnames <- bee_md %>% 
+  select(sub_species|subspecies_label) %>% 
+  distinct()
+
+#join metadata to enrichment results
+beemetab_enrich_fix <- beemetab_enrich_fix %>% 
+  left_join(enrich_mod_metadata, join_by(MODULE==module_name)) %>% 
+  left_join(bee_md_speciesnames, join_by(associated_groups=="sub_species"))
+
+
+beemetab_enrich_yes_mods <- beemetab_enrich_fix %>% 
+  select(MODULE) %>% 
+  distinct() 
+
+beemetab_enrich_yes_final <- beemetab_enrich_fix %>% 
+  select(enrichment_score|enrich_yn|MODULE|subspecies_label) %>% 
+  distinct() %>% 
+  right_join(bee_metab_md6_75_final, join_by(MODULE=="module_name", subspecies_label)) %>% 
+  dplyr::filter(MODULE %in% beemetab_enrich_yes_mods$MODULE) %>% 
+  mutate(enrich_yn = ifelse(is.na(enrich_yn), "NO", enrich_yn))
+  
+
+
+beemetab_enrich_no_final <- beemetab_enrich_no %>% 
+  select(MODULE|enrich_yn) %>% 
+  distinct() %>% 
+  right_join(bee_metab_md6_75_final, join_by(MODULE=="module_name")) %>% 
+  filter(!(is.na(enrich_yn)))
+
+```
+
+#Figures
+
+##Seq numbers
+
+###Fig S1 - Bar plot
+
+```{r}
+seqfilt_bee_long %>% 
+ggplot(aes(x = number, y = sample_id, fill = species_label, alpha = read_data_type))+
+ geom_bar(stat = "identity")+
+ theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 12, color = "black"),
+        legend.position = "right",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+    labs(y = "Bee ID", x = "Number of reads")+
+  scale_y_discrete(limits=rev)+
+  scale_x_continuous(expand = c(0,0), limits = c(0, 8.5e7))+
+  scale_fill_manual(guide = "none", values = c("Commercial B. impatiens"="#03286C",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_alpha_manual(values = c(0.4,1), labels = c("Mapped to host", "Unmapped"))+
+  guides(alpha=guide_legend(title=""))
+```
+
+###Fig S2A - Host Boxplot
+
+```{r}
+seqfilt_bee<-
+seqfilt_bee_long %>% 
+  mutate(log_number = log10(number)) %>% 
+  filter(read_data_type=="post_hostfiltering") %>% 
+ggplot(aes(x = subspecies_label, y = log_number, fill = subspecies_label, color = subspecies_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 8.2, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_blank())+
+    labs(y = "Number of reads")+
+  scale_x_discrete(name="Bee host", 
+                   labels = c(
+                     expression("BB"),
+                     expression("KP"),
+                     expression("W"~italic("Bi")),
+                              
+                               expression(italic("Br")),
+                              expression(italic("Bt")),
+                              expression(italic("Bv"))))+
+  scale_y_continuous(expand = c(0,0), limits=c(6, 8.5))+
+  
+  scale_fill_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                                "Koppert B. impatiens"="#026494",
+                                "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))
+```
+
+###Fig S2B - Site Boxplot
+
+```{r}
+seqfilt_site<-
+seqfilt_bee_long %>% 
+  mutate(log_number = log10(number)) %>% 
+  filter(read_data_type=="post_hostfiltering") %>% 
+   filter(!(site_general == "biobest"|site_general == "koppert")) %>% 
+ggplot(aes(x = site_label, y = log_number, fill = site_label, color = site_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 8.2, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank())+
+    labs(y = "Number of reads")+
+  scale_x_discrete(name="Site")+
+    scale_fill_met_d("Juarez",  direction = 1)+
+  scale_color_met_d("Juarez", direction = 1)
+```
+
+
+##qPCR
+
+###Fig S2C - By hosts
+
+```{r}
+#SPECIES
+Fig_specabun<-
+qpcr_bee %>% 
+  ggplot(aes(x = subspecies_label, y = log_total, fill = subspecies_label, color = subspecies_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_blank())+
+    labs(y = expression(Log[10]~"16S rRNA gene copy count"))+
+  scale_x_discrete(name="Bee host", 
+                   labels = c(
+                     expression("BB"),
+                     expression("KP"),
+                     expression("W"~italic("Bi")),
+                              
+                               expression(italic("Br")),
+                              expression(italic("Bt")),
+                              expression(italic("Bv"))))+
+  scale_y_continuous(expand = c(0,0), limits = c(5,10.8))+
+  
+  scale_fill_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                                "Koppert B. impatiens"="#026494",
+                                "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))
+
+
+labels_data <- data.frame(
+  sub_species = c("a", "ab", "ab", "ab", "ab", "b"),
+  x = c(1, 2, 3, 4, 5, 6)) 
+
+# Add labels to the plot using annotate
+Fig_specabun_sig<-Fig_specabun +
+  annotate("text", x = labels_data$x, y = rep(10, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+Fig_specabun_sig
+```
+
+###Fig S2D - By site
+
+
+```{r}
+#SITE
+fig_siteabun <- qpcr_bee %>% 
+  filter(!(site_general == "biobest"|site_general == "koppert")) %>% 
+  ggplot(aes(x = site_label, y = log_total, fill = site_label, color = site_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 10.5, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank())+
+  labs(y = expression(Log[10]~"16S rRNA gene copy count"))+
+  scale_x_discrete(name="Site", labels = scales::label_wrap(14))+
+  scale_y_continuous(expand = c(0,0), limits = c(5,11))+
+  scale_fill_met_d("Juarez",  direction = 1)+
+  scale_color_met_d("Juarez", direction = 1)
+```
+
+##Unmapped reads
+
+###Fig S2E - All hosts
+
+```{r}
+unmapfig_sp<-cov_drep1070_ra_tax_long_bmd %>% 
+  filter(Genome=="unmapped") %>% 
+  ggplot(aes(x = subspecies_label, y = rel_abun, fill = subspecies_label, color = subspecies_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 14, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+    labs(y = "Percent of reads unmapped")+
+  scale_x_discrete(name="Bee host", 
+                   labels = c(
+                     expression("BB"),
+                     expression("KP"),
+                     expression("W"~italic("Bi")),
+                              
+                               expression(italic("Br")),
+                              expression(italic("Bt")),
+                              expression(italic("Bv"))))+
+  scale_y_continuous(expand = c(0,0), limits = c(0,115))+
+  
+  scale_fill_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                                "Koppert B. impatiens"="#026494",
+                                "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))
+
+
+labels_data <- data.frame(
+  sub_species = c("ab", "a", "a", "ab", "ab", "b"),
+  x = c(1, 2, 3, 4, 5, 6)) 
+
+# Add labels to the plot using annotate
+unmapfig_sp_sig<-unmapfig_sp +
+  annotate("text", x = labels_data$x, y = rep(100, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+unmapfig_sp_sig
+
+
+```
+
+###Fig S2F - Site
+
+```{r}
+unmapfig_site<-cov_drep1070_ra_tax_long_bmd %>% 
+  filter(Genome=="unmapped") %>% 
+  filter(type=="wild") %>% 
+  ggplot(aes(x = site_label, y = rel_abun, fill = site_label, color = site_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+   annotate("text", x = 3.5, y = 104, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(size = 14, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+    labs(y = "Percent of reads unmapped")+
+  scale_x_discrete(name="Site")+
+  scale_y_continuous(expand = c(0,0), limits = c(0,115))+
+  
+   scale_fill_met_d("Juarez",  direction = 1)+
+  scale_color_met_d("Juarez", direction = 1)
+```
+
+###Fig S2 - Multipanel
+
+```{r}
+(seqfilt_bee+seqfilt_site+Fig_specabun_sig+fig_siteabun+unmapfig_sp_sig+unmapfig_site)+
+  plot_annotation(tag_levels = 'A')+
+  plot_layout(nrow = 3, ncol = 2) & 
+  theme(plot.tag = element_text(size = 14))
+```
+
+##Richness - phylotypes
+
+###Fig 2B - By hosts
+
+```{r}
+fig_phylo_rich<-cov_drep1070_rich_data %>% 
+  ggplot(aes(x = subspecies_label, y = value, fill = subspecies_label, color = subspecies_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+    labs(y = "Phylotype richness")+
+  scale_x_discrete(name="Bee host", 
+                   labels = c(
+                     expression("BB"~italic("Bi")),
+                     expression("KP"~italic("Bi")),
+                     expression("W"~italic("Bi")),
+                              
+                               expression(italic("Br")),
+                              expression(italic("Bt")),
+                              expression(italic("Bv"))))+
+  scale_y_continuous(expand = c(0,0), limits = c(0,11), breaks=c(0,2,4,6,8,10))+
+  
+  scale_fill_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                                "Koppert B. impatiens"="#026494",
+                                "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))
+
+labels_data <- data.frame(
+  sub_species = c("ab", "ab", "a", "b", "b", "ab"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_phylo_rich_sig<-fig_phylo_rich +
+  annotate("text", x = labels_data$x, y = rep(9.5, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+fig_phylo_rich_sig
+
+```
+
+###Fig S3A - By site
+
+```{r}
+richphylo_site<-cov_drep1070_rich_data %>% 
+  filter(type=="wild") %>% 
+  ggplot(aes(x = site_label, y = value, fill = site_label, color = site_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 10, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+  scale_x_discrete(name="Site", labels = scales::label_wrap(14))+
+  scale_y_continuous(name ="Phylotype richness", expand = c(0,0), limits = c(0,11), breaks=c(0,2,4,6,8,10))+
+  scale_fill_met_d("Juarez",  direction = 1)+
+  scale_color_met_d("Juarez", direction = 1)
+```
+
+##Shannon index - phylotypes
+
+###Fig S3B - By hosts
+
+```{r}
+shannphylo_species<-cov_drep1070_shann_data %>% 
+  ggplot(aes(x = subspecies_label, y = value, fill = subspecies_label, color = subspecies_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 2, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+    labs(y = "Shannon index")+
+  scale_x_discrete(name="Bee host", 
+                   labels = c(
+                     expression("B"~italic("Bi")),
+                     expression("KP"~italic("Bi")),
+                     expression("W"~italic("Bi")),
+                              
+                               expression(italic("Br")),
+                              expression(italic("Bt")),
+                              expression(italic("Bv"))))+
+  scale_y_continuous(expand = c(0,0), limits = c(0,2.2))+
+  
+  scale_fill_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                                "Koppert B. impatiens"="#026494",
+                                "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))
+
+```
+
+###Fig S3C - By site
+
+```{r}
+shannphylo_site<-cov_drep1070_shann_data %>% 
+  filter(type=="wild") %>% 
+  ggplot(aes(x = site_label, y = value, fill = site_label, color = site_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 2, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+  scale_x_discrete(name="Site", labels = scales::label_wrap(14))+
+  scale_y_continuous(name ="Shannon index", expand = c(0,0), limits = c(0,2.2))+
+  scale_fill_met_d("Juarez",  direction = 1)+
+  scale_color_met_d("Juarez", direction = 1)
+```
+
+###Fig S3 - Multipanel
+
+```{r}
+(richphylo_site|shannphylo_species|shannphylo_site)+
+  plot_annotation(tag_levels = 'A')+
+  plot_layout(widths=c(1,1.5,1))
+```
+
+##Abundance drep 1070
+
+###Fig 2A - Genera Relative abundance
+
+```{r}
+cov_drep1070_ra_gen_bmd <- cov_drep1070_ra_gen_bmd %>% 
+  mutate(subsp_label_italics = subspecies_label) %>% 
+  mutate(subsp_label_italics = recode(subsp_label_italics,
+               "BioBest B. impatiens" = "BioBest ~ italic('B. imp.')",
+                "Koppert B. impatiens" = "Koppert ~ italic('B. imp.')",
+               "Wild B. impatiens" = "Wild ~ italic('B. impatiens')",
+               "B. rufocinctus" = "italic('B. rufocinctus')",
+               "B. ternarius" = "italic('B. ternarius')",
+               "B. vagans" = "italic('B. vagans')"
+         ))
+                              
+
+relabunphylo_fig <- 
+
+cov_drep1070_ra_gen_bmd %>%
+  ungroup() %>% 
+  dplyr::select(!(Genome | rel_abun | species.x | species_id | Counter)) %>% 
+  distinct() %>% 
+  ggplot(aes(x=bee_id, y=relabun_gen, fill=genus)) +
+    geom_bar(position = "stack", stat="identity")+
+    facet_grid(cols=vars(subsp_label_italics), scales = "free", space = "free", labeller = label_parsed)+
+  theme_classic()+
+    theme(panel.spacing = unit(.50, 
+                               "lines"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          legend.text.align = 0,
+          legend.position = "right",
+          legend.text=element_text(face="italic"),
+          legend.title = element_text(size=14),
+          strip.text = element_text(colour = "black", size = 11),
+          axis.line=element_blank(),
+          text = element_text(size = 16), 
+          axis.text.x = element_text(size = 8, angle = 45, hjust=1,
+                                     color = "black"),
+          axis.text.y = element_text(size = 12, 
+                                     color = "black"),
+          axis.title.y = element_text(size = 16, 
+                                      margin = margin(t = 0, r = 20, b = 0, l = 0)),
+          axis.title.x = element_text(size = 16))+
+          scale_y_continuous(name = "Relative abundance", 
+                             expand = c(0, 0))+
+          scale_x_discrete(name = "Bee ID")+
+          #scale_fill_manual(values=met.brewer("Renoir", 10, direction = -1, override.order = TRUE ))
+
+#met.brewer("Renoir", 10, direction = -1, override.order = TRUE )
+
+          scale_fill_manual(name = "Phylotype", 
+                    values = c("Apibacter"="#E38170",
+                               "Arsenophonus"="#F6B3B0",
+                               "Bifidobacterium"="#6B5D9D",
+                               "Bombilactobacillus"="#9D9CD5",
+                               "Fructobacillus"="#355928",
+                               "Gilliamella"="#ACA33A",
+                               "Lactobacillaceae CALYQJ01"="#3C8DB9",
+                               "Lactobacillus"="#A3CBE1", 
+                               "Schmidhempelia"="#FFB81F",
+                               "Snodgrassella"="#B0799A"
+                               ))
+```
+
+##PCoA - Phylotypes
+
+###Fig 2C - All hosts
+
+```{r}
+cov_drep1070_pcoabray_data <- cov_drep1070_pcoabray_data %>% 
+  mutate(subsp_label_italics = subspecies_label) %>% 
+  mutate(subsp_label_italics = recode(subsp_label_italics,
+               "BioBest B. impatiens" = "BioBest ~ italic('B. impatiens')",
+                "Koppert B. impatiens" = "Koppert ~ italic('B. impatiens')",
+               "Wild B. impatiens" = "Wild ~ italic('B. impatiens')",
+               "B. rufocinctus" = "italic('B. rufocinctus')",
+               "B. ternarius" = "italic('B. ternarius')",
+               "B. vagans" = "italic('B. vagans')"
+         ))
+               
+
+pcoaphylo_sp<-cov_drep1070_pcoabray_data %>% 
+  ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = subspecies_label)) +
+  geom_point(alpha=0.8, size=5)+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 14, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_markdown())+
+  labs(color = "Bee host")+
+  scale_y_continuous(name = "PCo2 - 27.1%")+
+  scale_x_continuous(name = "PCo1 - 31.7%")+
+   scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#4eacc5",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"),
+                      labels = c("BioBest *B. impatiens*", 
+                                 "Koppert *B. impatiens*", 
+                                 "Wild *B. impatiens*", 
+                                 "*B. rufocinctus*",
+                                 "*B. ternarius*", 
+                                 "*B. vagans*"))
+```
+
+###Fig 2 - Multipanel
+
+```{r}
+(relabunphylo_fig)/(fig_phylo_rich_sig|pcoaphylo_sp)+plot_annotation(tag_levels = 'A')
+```
+
+
+###Fig S4A - Wild sites
+
+```{r}
+pcoaphylo_site<-cov_drep1070_wild_pcoabray_data %>% 
+  ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = site_label)) +
+  geom_jitter(alpha=0.8, size=7,width = 0.05, height = 0.05)+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_text(
+      size = 14))+
+  labs(color = "Site")+
+  scale_y_continuous(name = "PCo2 - 24.4%")+
+  scale_x_continuous(name = "PCo1 - 37.5%")+
+  scale_color_met_d("Juarez", direction = 1)
+```
+
+
+###Fig S4B - Commercial colonies
+
+```{r}
+pcoaphylo_comm<-cov_drep1070_comm_pcoabray_data %>% 
+  ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = subspecies_label, shape=site_name)) +
+  geom_jitter(alpha=0.8, size=7,width = 0.05, height = 0.05)+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_markdown(
+      size = 14))+
+  labs(color = "Commercial \nsupplier", shape = "Colony ID")+
+  scale_y_continuous(name = "PCo2 - 19.6%")+
+  scale_x_continuous(name = "PCo1 - 68.0%")+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494"),
+                     labels = c("BioBest", 
+                                 "Koppert"))+
+  scale_shape_discrete(labels = c("BioBest 1",
+                                "BioBest 2",
+                                "BioBest 3", 
+                                "Koppert 1",
+                                "Koppert 2",
+                                "Koppert 3"))
+```
+
+###Fig S4 - Multipanel
+
+```{r}
+(pcoaphylo_site|pcoaphylo_comm)+plot_annotation(tag_levels = "A")
+```
+
+
+##Relative abundance box plots
+
+###Fig S5A - Apibacter
+
+```{r}
+fig_ra_apibac<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Apibacter") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#E38170", color = "#E38170")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#E38170", color = "#E38170")+
+  ggtitle("Apibacter")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_blank())+
+  scale_x_discrete(name="Species", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,0.7), breaks=c(0.00,0.20,0.40,0.60))
+
+
+labels_data <- data.frame(
+  sub_species = c("ab", "a", "ab", "c", "ab", "bc"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_ra_apibac_sig<-fig_ra_apibac +
+  annotate("text", x = labels_data$x, y = rep(0.585, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+#fig_ra_apibac_sig
+```
+
+###Fig S5B - Arsenophonus
+
+```{r}
+fig_ra_arseno<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Arsenophonus") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#F6B3B0", color = "#F6B3B0")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#F6B3B0", color = "#F6B3B0")+
+  ggtitle("Arsenophonus")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank())+
+  scale_x_discrete(name="Species", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,1.3), breaks=c(0,0.25,0.50,0.75, 1.00))
+
+labels_data <- data.frame(
+  sub_species = c("a", "a", "b", "a", "ab", "ab"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_ra_arseno_sig<-fig_ra_arseno +
+  annotate("text", x = labels_data$x, y = rep(1.085, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+#fig_ra_arseno_sig
+```
+
+###Fig S5C - Bifidobacterium
+
+```{r}
+fig_ra_bifido_sig<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Bifidobacterium") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#6B5D9D", color = "#6B5D9D")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#6B5D9D", color = "#6B5D9D")+
+  ggtitle("Bifidobacterium")+
+ annotate("text", x = 3.5, y = 0.79, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_blank())+
+  scale_x_discrete(name="Species", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,0.95), breaks = c(0,0.25,0.50,0.75))
+
+
+
+```
+
+###Fig S5D - Bombilactobacillus
+
+```{r}
+fig_ra_bombi<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Bombilactobacillus") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#9D9CD5", color = "#9D9CD5")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#9D9CD5", color = "#9D9CD5")+
+  ggtitle("Bombilactobacillus")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+       axis.title.y = element_blank(),
+        axis.title.x = element_blank())+
+  scale_x_discrete(name="Species", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,0.11), breaks = c(0,0.05,0.10))
+
+labels_data <- data.frame(
+  sub_species = c("a", "ab", "c", "b", "b", "b"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_ra_bombi_sig<-fig_ra_bombi +
+  annotate("text", x = labels_data$x, y = rep(0.092, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+
+#fig_ra_bombi_sig
+```
+
+###Fig S5E - Fructobacillus
+
+```{r}
+fig_ra_fructo<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Fructobacillus") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#355928", color = "#355928")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#355928", color = "#355928")+
+
+  ggtitle("Fructobacillus")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 14))+
+  scale_x_discrete(name="Bee host", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,0.45))
+
+
+labels_data <- data.frame(
+  sub_species = c("a", "a", "b", "a", "ab", "ab"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_ra_fructo_sig<-fig_ra_fructo +
+  annotate("text", x = labels_data$x, y = rep(0.40, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+```
+
+###Fig S5F - Gilliamella
+
+```{r}
+fig_ra_gillia<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Gilliamella") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#ACA33A", color = "#ACA33A")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#ACA33A", color = "#ACA33A")+
+  ggtitle("Gilliamella")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        
+       axis.title.y = element_blank())+
+  scale_x_discrete(name="Species", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,0.55), breaks=c(0.00,0.20,0.40))
+
+labels_data <- data.frame(
+  sub_species = c("a", "a", "ab", "ab", "b", "ab"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_ra_gillia_sig<-fig_ra_gillia +
+  annotate("text", x = labels_data$x, y = rep(0.46, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+
+#fig_ra_gillia_sig
+```
+
+###Fig S5G - Lactobacillaceae C
+
+```{r}
+fig_ra_lacq<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Lactobacillaceae CALYQJ01") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#3C8DB9", color = "#3C8DB9")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#3C8DB9", color = "#3C8DB9")+
+   annotate("text", x = 3.5, y = 0.1422, label = "— n.s. —", size = 5)+
+  ggtitle("Lactobacillaceae CALYQJ01")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size=14))+
+  scale_x_discrete(name="Bee host", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,0.16))
+```
+
+
+###Fig S5H - Lactobacillus
+
+```{r}
+fig_ra_lacto<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Lactobacillus") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#A3CBE1", color = "#A3CBE1")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#A3CBE1", color = "#A3CBE1")+
+  ggtitle("Lactobacillus")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank())+
+  scale_x_discrete(name="Species", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,0.95), )
+
+labels_data <- data.frame(
+  sub_species = c("a", "a", "ab", "b", "b", "b"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_ra_lacto_sig<-fig_ra_lacto +
+  annotate("text", x = labels_data$x, y = rep(0.79, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+
+#fig_ra_lacto_sig
+```
+
+###Fig S5I - Schmidhempelia
+
+```{r}
+fig_ra_schmid<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Schmidhempelia") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#FFB81F", color = "#FFB81F")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#FFB81F", color = "#FFB81F")+
+  ggtitle("Schmidhempelia")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 14, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+  scale_x_discrete(name="Bee host", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,1.2))
+
+labels_data <- data.frame(
+  sub_species = c("a", "ab", "ab", "b", "ab", "a"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_ra_schmid_sig<-fig_ra_schmid +
+  annotate("text", x = labels_data$x, y = rep(1.00, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+#fig_ra_schmid_sig
+```
+
+###Fig S5J - Snodgrassella
+
+```{r}
+fig_ra_snod<-
+cov_drep1070_rgm_distinct %>% 
+  filter(genus == "Snodgrassella") %>% 
+  ggplot(aes(x = subspecies_label, y = relabun_gen))+
+  geom_boxplot(alpha=0.4, lwd=0.7,  fill = "#B0799A", color = "#B0799A")+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=3,  fill = "#B0799A", color = "#B0799A")+
+  ggtitle("Snodgrassella")+
+
+  theme_classic()+
+  theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", 
+                                    fill = NA, 
+                                    linewidth = 1),
+        strip.background = element_rect(color="white", 
+                                        linewidth=1.5, 
+                                        linetype="solid"),
+        strip.text = element_text(colour = "black", 
+                                  size = 16),
+        legend.position = "none",
+        axis.line=element_blank(),
+        text = element_text(size = 12), 
+        plot.title = element_text(face="italic", size=14, hjust = 0.5),
+        axis.text.y = element_text(size = 12, color = "black"),
+        axis.text.x = element_text(size = 12, color = "black"),
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(size = 14, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+  scale_x_discrete(name="Bee host", 
+                   labels = c("BB Bi", "KP Bi", "W Bi", "Br", "Bt", "Bv"))+
+  scale_y_continuous(name ="Relative abundance", expand = c(0,0), limits=c(0,0.95))
+
+labels_data <- data.frame(
+  sub_species = c("a", "b", "ab", "ab", "ab", "a"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_ra_snod_sig<-fig_ra_snod +
+  annotate("text", x = labels_data$x, y = rep(0.79, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+#fig_ra_snod_sig
+```
+
+###Fig S5 - Multipanel figure
+
+```{r}
+fig_ra_apibac_sig+fig_ra_arseno_sig+fig_ra_bifido_sig+fig_ra_bombi_sig+fig_ra_fructo_sig+fig_ra_gillia_sig+fig_ra_lacq+fig_ra_lacto_sig+fig_ra_schmid_sig+fig_ra_snod_sig+
+  plot_annotation(tag_levels = 'A') +
+  plot_layout(ncol = 2, nrow=5)+
+  theme(plot.tag.position = c(0.005, 0.95),
+        plot.tag = element_text(face = "bold",size = 12, hjust = 0, vjust = 0))
+
+
+
+```
+
+
+##Richness - MAGs
+
+###Fig 3A - By hosts
+
+```{r}
+fig_mag_rich<-
+cov_drep1070_MAG_rich_data %>% 
+  ggplot(aes(x = subspecies_label, y = value, fill = subspecies_label, color = subspecies_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+    labs(y = "MAG richness")+
+  scale_x_discrete(name="Bee host", 
+                   labels = c(
+                     "BB",
+                     "KP",
+                     expression("W"~italic("Bi")),
+                              
+                               expression(italic("Br")),
+                              expression(italic("Bt")),
+                              expression(italic("Bv"))))+
+  scale_y_continuous(expand = c(0,0), limits=c(0,29))+
+  
+  scale_fill_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                                "Koppert B. impatiens"="#026494",
+                                "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))
+
+
+labels_data <- data.frame(
+  sub_species = c("ab", "bc", "c", "ab", "a", "a"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_mag_rich_sig<-fig_mag_rich +
+  annotate("text", x = labels_data$x, y = rep(26.5, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+fig_mag_rich_sig
+
+```
+
+###Fig 3B - By site
+
+```{r}
+fig_mag_richsite <- 
+  cov_drep1070_MAG_rich_data %>% 
+  filter(type=="wild") %>% 
+  ggplot(aes(x = site_label, y = value, fill = site_label, color = site_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+  scale_x_discrete(name="Site", labels = scales::label_wrap(14))+
+  scale_y_continuous(name ="MAG richness", expand = c(0,0), limits = c(0,29))+
+  scale_fill_met_d("Juarez",  direction = 1)+
+  scale_color_met_d("Juarez", direction = 1)
+
+labels_data <- data.frame(
+  site_label = c("a", "a", "a", "a", "a", "b"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_mag_richsite_sig<-fig_mag_richsite +
+  annotate("text", x = labels_data$x, y = rep(26.5, nrow(labels_data)),
+           label = labels_data$site_label, size = 5, vjust = -0.5)
+
+fig_mag_richsite_sig
+```
+
+##Shannon index - MAGs
+
+###Fig S7A - By hosts
+
+```{r}
+shannmag_sp<-cov_drep1070_MAG_shann_data %>% 
+  ggplot(aes(x = subspecies_label, y = value, fill = subspecies_label, color = subspecies_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 2.9, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+    labs(y = "Shannon index")+
+  scale_x_discrete(name="Bee host", 
+                   labels = c(
+                     expression("BB"~italic("Bi")),
+                     expression("KP"~italic("Bi")),
+                     expression("W"~italic("Bi")),
+                              
+                               expression(italic("Br")),
+                              expression(italic("Bt")),
+                              expression(italic("Bv"))))+
+  scale_y_continuous(expand = c(0,0), limits = c(0,3.2))+
+  
+  scale_fill_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                                "Koppert B. impatiens"="#026494",
+                                "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))
+
+```
+
+###Fig S7B - By site
+
+```{r}
+shannmag_site<-cov_drep1070_MAG_shann_data %>% 
+  filter(type=="wild") %>% 
+  ggplot(aes(x = site_label, y = value, fill = site_label, color = site_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 3, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+  scale_x_discrete(name="Site", labels = scales::label_wrap(14))+
+  scale_y_continuous(name ="Shannon index", expand = c(0,0), limits = c(0,3.2))+
+  scale_fill_met_d("Juarez",  direction = 1)+
+  scale_color_met_d("Juarez", direction = 1)
+```
+
+###Fig S7 - Multipanel
+
+```{r}
+(shannmag_sp|shannphylo_site)+plot_annotation(tag_levels = "A")
+```
+
+
+##PCoA - MAGs
+
+
+###Fig 3C - All hosts
+
+```{r}
+pcoamag_sp<-cov_drep1070_MAG_pcoabray_data %>% 
+  ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = subspecies_label)) +
+  geom_point(alpha=0.8, size=5)+
+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 14, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_markdown())+
+  labs(color = "Bee host")+
+  scale_y_continuous(name = "PCo2 - 22.4%")+
+  scale_x_continuous(name = "PCo1 - 25.0%")+
+   scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#4eacc5",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"),
+                      labels = c("BioBest *B. impatiens*", 
+                                 "Koppert *B. impatiens*", 
+                                 "Wild *B. impatiens*", 
+                                 "*B. rufocinctus*",
+                                 "*B. ternarius*", 
+                                 "*B. vagans*"))
+```
+
+###Fig 3 - Multipanel
+
+```{r}
+(fig_mag_rich_sig+fig_mag_richsite_sig+pcoamag_sp)+
+  plot_annotation(tag_levels = "A")+
+  plot_layout(widths = c(1,1,1.5))
+
+```
+
+
+###Fig S8A - Wild sites
+
+```{r}
+pcoamag_site<-cov_drep1070_wild_MAG_pcoabray_data %>% 
+  ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = site_label)) +
+  geom_jitter(alpha=0.8, size=7,width = 0.05, height = 0.05)+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_text(
+      size = 14))+
+  labs(color = "Site")+
+  scale_y_continuous(name = "PCo2 - 25.0%")+
+  scale_x_continuous(name = "PCo1 - 26.3%")+
+  scale_color_met_d("Juarez", direction = 1)
+```
+
+###Fig S8B - Commercial colonies
+
+```{r}
+pcoamag_comm<-cov_drep1070_MAG_comm_pcoabray_data %>% 
+  ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = subspecies_label, shape=site_name)) +
+  geom_jitter(alpha=0.8, size=7,width = 0.05, height = 0.05)+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_text(
+      size = 14))+
+  labs(color = "Commercial \nsupplier", shape = "Colony ID")+
+  scale_y_continuous(name = "PCo2 - 20.5%")+
+  scale_x_continuous(name = "PCo1 - 56.9%")+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494"),
+                     labels = c("BioBest", 
+                                 "Koppert"))+
+  scale_shape_discrete(labels = c("BioBest 1",
+                                "BioBest 2",
+                                "BioBest 3", 
+                                "Koppert 1",
+                                "Koppert 2",
+                                "Koppert 3"))
+ 
+```
+
+###Fig S8 - Multipanel
+
+```{r}
+(pcoamag_site|pcoamag_comm)+plot_annotation(tag_levels = "A")
+```
+
+
+
+##MAG abundance by taxa
+
+```{r}
+cov_drep1070_ra_MAG <- cov_drep1070_ra_MAG %>% 
+  mutate(subsp_label_italics = subspecies_label) %>% 
+  mutate(subsp_label_italics = recode(subsp_label_italics,
+               "BioBest B. impatiens" = "BioBest ~ italic('B. imp.')",
+                "Koppert B. impatiens" = "Koppert ~ italic('B. imp.')",
+               "Wild B. impatiens" = "Wild ~ italic('B. impatiens')",
+               "B. rufocinctus" = "italic('B. rufocinctus')",
+               "B. ternarius" = "italic('B. ternarius')",
+               "B. vagans" = "italic('B. vagans')"
+         ))
+
+cov_drep1070_ra_MAG <- cov_drep1070_ra_MAG %>% 
+  mutate(subsp_label_short = subspecies_label) %>% 
+  mutate(subsp_label_short = recode(subsp_label_short,
+               "BioBest B. impatiens" = "BB ~ italic('Bi')",
+                "Koppert B. impatiens" = "KP ~ italic('Bi')",
+               "Wild B. impatiens" = "Wild ~ italic('Bi')",
+               "B. rufocinctus" = "italic('Br')",
+               "B. ternarius" = "italic('Bt')",
+               "B. vagans" = "italic('Bv')"))
+
+```
+
+###Fig 4A - Apibacter
+
+```{r}
+api_mags<-
+  cov_drep1070_ra_MAG %>% 
+  filter(genus=="Apibacter") %>% 
+  ggplot(aes(x=bee_id, y=relabun_mag, fill=species_id)) +
+    geom_bar(position = "stack", stat="identity")+
+    facet_grid(cols=vars(subsp_label_short), scales = "free", space = "free", labeller = label_parsed)+
+  ggtitle("Apibacter")+
+  theme_classic()+
+    theme(panel.spacing = unit(.50, 
+                               "lines"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          legend.text.align = 0,
+          legend.position = "right",
+          legend.margin=margin(c(0.5,1,0.5,1)),
+          legend.title = element_text(size=12),
+          legend.text=element_text(face="italic", size = 10),
+          strip.text = element_text(colour = "black", size = 11),
+          axis.line=element_blank(),
+          text = element_text(size = 16), 
+          plot.title = element_text(face="italic", size=14, hjust = 0.5),
+          axis.text.x = element_blank(),
+          axis.text.y = element_text(size = 12, 
+                                     color = "black"),
+          axis.title.y = element_text(size = 14, 
+                                      margin = margin(t = 0, r = 20, b = 0, l = 0)),
+          axis.title.x = element_blank())+
+          scale_y_continuous(name = "Relative abundance", 
+                             expand = c(0, 0), limits=c(0,0.55))+
+          scale_x_discrete(name = "Bee")+
+          #scale_fill_manual(values=met.brewer("Renoir", 10, direction = -1, override.order = TRUE ))
+
+#met.brewer("Renoir", 10, direction = -1, override.order = TRUE )
+
+          scale_fill_manual(name = "MAG", 
+                    values = c("Apibacter 1"="#9f5a4e",
+                               "Apibacter 2"="#e38170",
+                               "Apibacter mensalis 1"="#eba79b",
+                               "Apibacter mensalis 2"="#f7d9d4"
+                               ))
+  
+```
+
+###Fig 4B - Bifidobacterium
+
+```{r}
+bifido_mags<-
+  cov_drep1070_ra_MAG %>% 
+  filter(genus=="Bifidobacterium") %>% 
+  ggplot(aes(x=bee_id, y=relabun_mag, fill=species_id)) +
+    geom_bar(position = "stack", stat="identity")+
+    facet_grid(cols=vars(subsp_label_short), scales = "free", space = "free", labeller = label_parsed)+
+  ggtitle("Bifidobacterium")+
+  theme_classic()+
+    theme(panel.spacing = unit(.50, 
+                               "lines"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          legend.text.align = 0,
+          legend.position = "right",
+          legend.margin=margin(c(0.5,1,0.5,1)),
+          legend.title = element_blank(),
+          legend.text=element_text(face="italic", size = 10),
+          strip.text = element_text(colour = "black", size = 11),
+          axis.line=element_blank(),
+          text = element_text(size = 16), 
+          plot.title = element_text(face="italic", size=14, hjust = 0.5),
+          axis.text.x = element_blank(),
+          axis.text.y = element_text(size = 12, 
+                                     color = "black"),
+          axis.title.y = element_blank(),
+          axis.title.x = element_blank())+
+          scale_y_continuous(name = "Relative abundance", 
+                             expand = c(0, 0), limits=c(0,0.75))+
+          scale_x_discrete(name = "Bee")+
+          #scale_fill_manual(values=met.brewer("Renoir", 10, direction = -1, override.order = TRUE ))
+
+#met.brewer("Renoir", 10, direction = -1, override.order = TRUE )
+
+          scale_fill_manual(name = "", 
+                    values = c("Bifidobacterium 1"="#2b253f",
+                               "Bifidobacterium 2"="#4b416e",
+                               "Bifidobacterium 3"="#6b5d9d",
+                               "Bifidobacterium 4"="#897db1",
+                               "Bifidobacterium 5"="#a69ec4",
+                               "Bifidobacterium bohemicum"="#c4bed8",
+                               "Bifidobacterium sp024104275"="#e1dfeb"
+                               ))
+  
+```
+
+###Fig 4C - Bombilactabacillus
+
+```{r}
+bombi_mags<-
+cov_drep1070_ra_MAG %>% 
+  filter(genus=="Bombilactobacillus") %>% 
+  ggplot(aes(x=bee_id, y=relabun_mag, fill=species_id)) +
+    geom_bar(position = "stack", stat="identity")+
+    facet_grid(cols=vars(subsp_label_short), scales = "free", space = "free", labeller = label_parsed)+
+  ggtitle("Bombilactobacillus")+
+  theme_classic()+
+    theme(panel.spacing = unit(.50, 
+                               "lines"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          legend.text.align = 0,
+          legend.position = "right",
+          legend.margin=margin(c(0.5,1,0.5,1)),
+          legend.title = element_blank(),
+          legend.text=element_text(face="italic", size = 10),
+          strip.text = element_text(colour = "black", size = 11),
+          axis.line=element_blank(),
+          text = element_text(size = 16), 
+          plot.title = element_text(face="italic", size=14, hjust = 0.5),
+          axis.text.x = element_blank(),
+          axis.text.y = element_text(size = 12, 
+                                     color = "black"),
+          axis.title.y = element_text(size = 14, 
+                                      margin = margin(t = 0, r = 20, b = 0, l = 0)),
+          axis.title.x = element_blank())+
+          scale_y_continuous(name = "Relative abundance", 
+                             expand = c(0, 0), limits=c(0,0.10), breaks=c(0.05,0.10))+
+          scale_x_discrete(name = "Bee")+
+          #scale_fill_manual(values=met.brewer("Renoir", 10, direction = -1, override.order = TRUE ))
+
+#met.brewer("Renoir", 10, direction = -1, override.order = TRUE )
+
+          scale_fill_manual(name = "", 
+                    values = c("Bombilactobacillus bombi 1"="#7e7daa",
+                               "Bombilactobacillus bombi 2"="#c4c4e6"
+                               ))
+```
+
+###Fig 4D - Fructobacillus
+
+```{r}
+fructo_mags<-
+cov_drep1070_ra_MAG %>% 
+  filter(genus=="Fructobacillus") %>% 
+  ggplot(aes(x=bee_id, y=relabun_mag, fill=species_id)) +
+    geom_bar(position = "stack", stat="identity")+
+    facet_grid(cols=vars(subsp_label_short), scales = "free", space = "free", labeller = label_parsed)+
+  ggtitle("Fructobacillus")+
+  theme_classic()+
+    theme(panel.spacing = unit(.50, 
+                               "lines"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          legend.text.align = 0,
+          legend.position = "right",
+          legend.margin=margin(c(0.5,1,0.5,1)),
+          legend.title = element_blank(),
+          legend.text=element_text(face="italic", size = 10),
+          strip.text = element_text(colour = "black", size = 11),
+          axis.line=element_blank(),
+          text = element_text(size = 16), 
+          plot.title = element_text(face="italic", size=14, hjust = 0.5),
+          axis.text.x = element_blank(),
+          axis.text.y = element_text(size = 12, 
+                                     color = "black"),
+          axis.title.y = element_blank(),
+          axis.title.x = element_blank())+
+          scale_y_continuous(name = "Relative abundance", 
+                             expand = c(0, 0), limits=c(0,0.40))+
+          scale_x_discrete(name = "Bee")+
+          #scale_fill_manual(values=met.brewer("Renoir", 10, direction = -1, override.order = TRUE ))
+
+#met.brewer("Renoir", 10, direction = -1, override.order = TRUE )
+
+          scale_fill_manual(name = "", 
+                    values = c("Fructobacillus fructosus"="#2a4720",
+                               "Fructobacillus tropaeoli"="#869b7e"
+                               ))
+```
+
+###Fig 4E - Gilliamella
+
+
+```{r}
+gillia_mags<-
+  cov_drep1070_ra_MAG %>% 
+  filter(genus=="Gilliamella") %>% 
+  ggplot(aes(x=bee_id, y=relabun_mag, fill=species_id)) +
+    geom_bar(position = "stack", stat="identity")+
+    facet_grid(cols=vars(subsp_label_short), scales = "free", space = "free", labeller = label_parsed)+
+  ggtitle("Gilliamella")+
+  theme_classic()+
+    theme(panel.spacing = unit(.50, 
+                               "lines"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          legend.text.align = 0,
+          legend.position = "right",
+          legend.margin=margin(c(0.5,1,0.5,1)),
+          legend.title = element_blank(),
+          legend.text=element_text(face="italic", size = 10),
+          strip.text = element_text(colour = "black", size = 11),
+          axis.line=element_blank(),
+          text = element_text(size = 16), 
+          plot.title = element_text(face="italic", size=14, hjust = 0.5),
+          axis.text.x = element_blank(),
+          axis.text.y = element_text(size = 12, 
+                                     color = "black"),
+          axis.title.y = element_text(size = 14, 
+                                      margin = margin(t = 0, r = 20, b = 0, l = 0)),
+          axis.title.x = element_blank())+
+          scale_y_continuous(name = "Relative abundance", 
+                             expand = c(0, 0), limits=c(0,0.45))+
+          scale_x_discrete(name = "Bee")+
+          #scale_fill_manual(values=met.brewer("Renoir", 10, direction = -1, override.order = TRUE ))
+
+#met.brewer("Renoir", 10, direction = -1, override.order = TRUE )
+
+          scale_fill_manual(name = "",
+                    values = c("Gilliamella apicola_A"="#343111",
+                               "Gilliamella apicola_M 1"="#56521d",
+                               "Gilliamella apicola_M 2"="#787229",
+                               "Gilliamella bombi 1"="#aca33a",
+                               "Gilliamella bombi 2"="#c5bf75",
+                               "Gilliamella bombi 3"="#dedab0"
+                               ))
+```
+
+
+###Fig 4F - Lactobacillus
+
+```{r}
+lacto_mags<-
+  cov_drep1070_ra_MAG %>% 
+  filter(genus=="Lactobacillus") %>% 
+  ggplot(aes(x=bee_id, y=relabun_mag, fill=species_id)) +
+    geom_bar(position = "stack", stat="identity")+
+    facet_grid(cols=vars(subsp_label_short), scales = "free", space = "free", labeller = label_parsed)+
+  ggtitle("Lactobacillus")+
+  theme_classic()+
+    theme(panel.spacing = unit(.50, 
+                               "lines"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          legend.text.align = 0,
+          legend.position = "right",
+          legend.title = element_blank(),
+          legend.margin=margin(c(0.5,1,0.5,1)),
+          legend.text=element_text(face="italic", size = 10),
+          strip.text = element_text(colour = "black", size = 11),
+          axis.line=element_blank(),
+          text = element_text(size = 16), 
+          plot.title = element_text(face="italic", size=14, hjust = 0.5),
+          axis.text.x = element_blank(),
+          axis.text.y = element_text(size = 12, 
+                                     color = "black"),
+          axis.title.y = element_blank(),
+          axis.title.x = element_text(size = 14))+
+          scale_y_continuous(name = "Relative abundance", 
+                             expand = c(0, 0), limits=c(0,0.75))+
+          scale_x_discrete(name = "Bee")+
+          #scale_fill_manual(values=met.brewer("Renoir", 10, direction = -1, override.order = TRUE ))
+
+#met.brewer("Renoir", 10, direction = -1, override.order = TRUE )
+
+          scale_fill_manual(name = "",
+                    values = c("Lactobacillus"="#2a6382",
+                               "Lactobacillus bombicola"="#3c8db9",
+                               "Lactobacillus panisapium"="#9ec6dc"
+                               ))
+
+```
+
+
+###Fig 4G - Snodgrassella
+
+```{r}
+snod_mags<-
+cov_drep1070_ra_MAG %>% 
+  filter(genus=="Snodgrassella") %>% 
+  ggplot(aes(x=bee_id, y=relabun_mag, fill=species_id)) +
+    geom_bar(position = "stack", stat="identity")+
+    facet_grid(cols=vars(subsp_label_short), scales = "free", space = "free", labeller = label_parsed)+
+  ggtitle("Snodgrassella")+
+  theme_classic()+
+    theme(panel.spacing = unit(.50, 
+                               "lines"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          legend.text.align = 0,
+          legend.position = "right",
+          legend.margin=margin(c(0.5,1,0.5,1)),
+          legend.title = element_blank(),
+          legend.text=element_text(face="italic", size = 10),
+          strip.text = element_text(colour = "black", size = 11),
+          axis.line=element_blank(),
+          text = element_text(size = 16), 
+          plot.title = element_text(face="italic", size=14, hjust = 0.5),
+          axis.text.x = element_blank(),
+          axis.text.y = element_text(size = 12, 
+                                     color = "black"),
+          axis.title.y = element_text(size = 14, 
+                                      margin = margin(t = 0, r = 20, b = 0, l = 0)),
+          axis.title.x = element_text(size = 14))+
+          scale_y_continuous(name = "Relative abundance", 
+                             expand = c(0, 0), limits=c(0,0.78))+
+          scale_x_discrete(name = "Bee")+
+          #scale_fill_manual(values=met.brewer("Renoir", 10, direction = -1, override.order = TRUE ))
+
+#met.brewer("Renoir", 10, direction = -1, override.order = TRUE )
+
+          scale_fill_manual(name = "",
+                    values = c("Snodgrassella communis 1"="#46303e",
+                               "Snodgrassella communis 2"="#7b556c",
+                               "Snodgrassella communis 3"="#b0799a",
+                               "Snodgrassella communis 4"="#c8a1b8",
+                               "Snodgrassella sp024103515"="#dfc9d7"
+                               ))
+```
+
+###Fig 4 - Multipanel
+
+```{r}
+(api_mags|bifido_mags)/(bombi_mags|fructo_mags)/(gillia_mags|lacto_mags)/(snod_mags+guide_area()) + 
+  plot_layout(guides = 'collect')+plot_annotation(tag_levels = "A")
+```
+
+##Fig S10 - PCoA metabolism 
+
+```{r}
+#pcoamag_sp<-
+metab_1080_pcoajacc_data %>% 
+  ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = species_cluster2)) +
+  geom_point(alpha=0.8, size=7)+
+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 18, color = "black"),
+        axis.text.y = element_text(size = 18, color = "black"),
+        axis.title.y = element_text(size = 18, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 18, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=18),
+         legend.text = element_text(face="italic"))+
+  labs(color = "MAG cluster")+
+  scale_y_continuous(name = "PCo2 - 16.1%")+
+  scale_x_continuous(name = "PCo1 - 42.2%")+
+   scale_color_manual(name = "MAG cluster", 
+                    values = c("Apibacter 1"="#9f5a4e",
+                               "Apibacter 2"="#e38170",
+                               "Apibacter mensalis 1"="#eba79b",
+                               "Apibacter mensalis 2"="#f7d9d4",
+                               "Arsenophonus apicola"="#8B4000",
+                               "Bifidobacterium 1"="#2b253f",
+                               "Bifidobacterium 2"="#4b416e",
+                               "Bifidobacterium 3"="#6b5d9d",
+                               "Bifidobacterium 4"="#897db1",
+                               "Bifidobacterium 5"="#a69ec4",
+                               "Bifidobacterium bohemicum"="#c4bed8",
+                               "Bifidobacterium sp024104275"="#e1dfeb",
+                               "Bombilactobacillus bombi 1"="#808dcb",
+                               "Bombilactobacillus bombi 2"="#bbc4ed",
+                               "Fructobacillus fructosus"="#2a4720",
+                               "Fructobacillus tropaeoli"="#869b7e",
+                               "Gilliamella apicola_A"="#343111",
+                               "Gilliamella apicola_M 1"="#56521d",
+                               "Gilliamella apicola_M 2"="#787229",
+                               "Gilliamella bombi 1"="#aca33a",
+                               "Gilliamella bombi 2"="#c5bf75",
+                               "Gilliamella bombi 3"="#dedab0",
+                               "Lactobacillaceae CALYQJ01"="#193B4E",
+                               "Lactobacillus"="#2a6382",
+                               "Lactobacillus bombicola"="#3c8db9",
+                               "Lactobacillus panisapium"="#9ec6dc",
+                               "Schmidhempelia bombi"="#FFB81F",
+                               "Snodgrassella communis 1"="#46303e",
+                               "Snodgrassella communis 2"="#7b556c",
+                               "Snodgrassella communis 3"="#b0799a",
+                               "Snodgrassella communis 4"="#c8a1b8",
+                               "Snodgrassella sp024103515"="#dfc9d7"
+                               ))
+```
+
+
+##Fig S11 - MAG enrichment
+
+
+```{r}
+metab_1080_bigfig_list<-metab_1080_bigfig %>% 
+  ungroup() %>% 
+  select(genus|species_cluster2|module_name|rel_pres) %>% 
+  distinct()
+
+enrich_taxa_data_gen <- enrich_taxa_data_clean %>% 
+  left_join(metab_1080_bigfig_list, join_by(associated_groups=="species_cluster2", MODULE=="module_name"))
+
+# Extracting the string before the first comma from the right
+enrich_taxa_data_gen$mod_simp <- gsub(",[^,]+ =>.*| =>.*", "", enrich_taxa_data_gen$MODULE)
+enrich_taxa_data_gen$mod_simp
+
+mod_ids<-metab_1080 %>% 
+  select(module|module_name) %>% 
+  distinct()
+
+enrich_taxa_data_gen <- enrich_taxa_data_gen %>% 
+  left_join(mod_ids, join_by(MODULE=="module_name"))
+
+enrich_taxa_data_gen <- enrich_taxa_data_gen %>% 
+  mutate(mod_simp2 = paste(mod_simp, module, sep=", "))
+
+enrich_taxa_data_gen %>% 
+    filter(!(is.na(module_category))) %>% 
+  ggplot(aes(x=associated_groups, y=mod_simp2, fill = module_category))+
+    geom_point(aes(alpha = rel_pres, size = enrichment_score, fill = module_category), shape = 21) +
+facet_grid(rows = vars(module_category), cols=vars(genus), scales = "free", space = "free")+
+  theme_classic()+
+   theme(text = element_text(size = 18), 
+        axis.text.x = element_text(size = 13, color = "black", angle=45,hjust=1, face="italic"),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "right",
+        axis.title.y = element_text(size = 20, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 20, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        panel.border = element_rect(colour = "black", fill=NA, size=1),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size=18),
+        strip.text.y = element_blank(),
+        strip.text.x = element_blank(),
+        panel.spacing = unit(0.2, "lines"))+
+  labs(fill="KEGG module \ncategory")+
+  scale_x_discrete(name = "MAG cluster")+
+  scale_alpha_continuous(name= "Percent of MAGs \nwith module", limits=c(0.00,1.00))+
+  scale_size_continuous(name="Enrichment score")+
+  scale_y_discrete(name ="KEGG module", limits=rev)+
+  scale_fill_manual(values=c("Amino acid metabolism"="#82c236",
+                              "Biosynthesis of terpenoids and polyketides"="#009c7e",
+                              "Carbohydrate metabolism"="#026f9f",
+                              "Energy metabolism"="#692c75",
+                              "Glycan metabolism"="#fb7286",
+                              "Lipid metabolism"="#ec2b2b",
+                              "Metabolism of cofactors and vitamins"="#ff9400",
+                              "Nucleotide metabolism"="#ffc200"), labels = function(x) str_wrap(x, width = 20))+
+  guides(fill = guide_legend(override.aes = list(size=5), order=1), size=guide_legend(order=3), alpha=guide_legend(override.aes = list(size=5, fill = "#692c75"), order=2))
+```
+
+##Bee functional richness
+
+###Fig 5A - All hosts
+
+```{r}
+fig_beemetab_rich<-
+bee_metab_div_rich_data %>% 
+  ggplot(aes(x = subspecies_label, y = value, fill = subspecies_label, color = subspecies_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black", ),
+        axis.text.y = element_text(size = 13, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+    labs(y = "Number of KEGG modules")+
+  scale_x_discrete(name="Bee host", 
+                   labels = c(
+                     expression("BB"),
+                     expression("KP"),
+                     expression("W"~italic("Bi")),
+                              
+                               expression(italic("Br")),
+                              expression(italic("Bt")),
+                              expression(italic("Bv"))))+
+  scale_y_continuous(expand = c(0,0), limits=c(55,108))+
+  
+  scale_fill_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                                "Koppert B. impatiens"="#026494",
+                                "Wild B. impatiens"="#0288AC",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"))
+
+labels_data <- data.frame(
+  sub_species = c("a", "ab", "b", "ab", "ab", "ab"),
+  x = c(1, 2, 3, 4, 5, 6)  # Adjust x-axis positions based on your data
+)
+
+# Add labels to the plot using annotate
+fig_beemetab_rich_sig<-fig_beemetab_rich +
+  annotate("text", x = labels_data$x, y = rep(103, nrow(labels_data)),
+           label = labels_data$sub_species, size = 5, vjust = -0.5)
+
+fig_beemetab_rich_sig
+
+```
+
+###Fig S12A - Site
+
+```{r}
+fig_beemetab_rich_wild<-
+bee_metab_div_rich_data %>% 
+  filter(type=="wild") %>% 
+  ggplot(aes(x = site_label, y = value, fill = site_label, color = site_label))+
+ geom_boxplot(alpha=0.4, lwd=0.7)+
+  geom_jitter(shape=16, position=position_jitter(width=0.15, height=0), size=4)+
+  annotate("text", x = 3.5, y = 108, label = "— n.s. —", size = 5)+
+  theme_classic()+
+  theme(
+    panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+    text = element_text(size = 16), 
+    axis.text.x = element_text(size = 13, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        legend.position = "none",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+  scale_x_discrete(name="Site", labels = scales::label_wrap(14))+
+  scale_y_continuous(name ="Number of KEGG modules", limits=c(52,108))+
+  scale_fill_met_d("Juarez",  direction = 1)+
+  scale_color_met_d("Juarez", direction = 1)
+
+
+```
+
+##Bee functional PCoA
+
+###Fig 5B - All hosts
+
+```{r}
+pcoa_beemetab<-
+bee_metab_div_pcoajacc_data %>% 
+  ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = subspecies_label)) +
+  geom_jitter(alpha=0.8, size=5, width=0.01, height=0.01)+
+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 14, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_markdown())+
+  labs(color = "Bee host")+
+  scale_y_continuous(name = "PCo2 - 21.2%")+
+  scale_x_continuous(name = "PCo1 - 53.5%")+
+   scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#4eacc5",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"),
+                      labels = c("BioBest *B. impatiens*", 
+                                 "Koppert *B. impatiens*", 
+                                 "Wild *B. impatiens*", 
+                                 "*B. rufocinctus*",
+                                 "*B. ternarius*", 
+                                 "*B. vagans*"))
+```
+
+###Fig S12B - Site
+
+```{r}
+pcoa_beemetab_wild<-bee_metab_div_wild_pcoajacc_data %>% 
+ ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = site_label)) +
+  geom_jitter(alpha=0.8, size=7,width = 0.05, height = 0.05)+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_text(
+      size = 14))+
+  labs(color = "Site")+
+  scale_y_continuous(name = "PCo2 - 20.1%")+
+  scale_x_continuous(name = "PCo1 - 55.8%")+
+  scale_color_met_d("Juarez", direction = 1)
+
+```
+
+
+###Fig S12C - Comm only
+
+```{r}
+pcoa_beemetab_comm<-
+  bee_metab_div_comm_pcoajacc_data %>% 
+ ggplot(aes(x=`Axis.1`, y=`Axis.2`, color = subspecies_label, shape=site_name)) +
+  geom_jitter(alpha=0.8, size=7,width = 0.05, height = 0.05)+
+  theme_classic()+
+  theme(text = element_text(size = 16), 
+        axis.text.x = element_text(size = 14, color = "black"),
+        axis.text.y = element_text(size = 14, color = "black"),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        legend.title = element_text(size=14),
+         legend.text = element_text(
+      size = 14))+
+  labs(color = "Commercial \nsupplier", shape = "Colony ID")+
+  scale_y_continuous(name = "PCo2 - 9.2%")+
+  scale_x_continuous(name = "PCo1 - 88.5%")+
+  scale_color_manual(values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494"),
+                     labels = c("BioBest", 
+                                 "Koppert"))+
+  scale_shape_discrete(labels = c("BioBest 1",
+                                "BioBest 2",
+                                "BioBest 3", 
+                                "Koppert 1",
+                                "Koppert 2",
+                                "Koppert 3"))
+
+```
+
+###Fig S12 - Multipanel
+
+```{r}
+(fig_beemetab_rich_wild+pcoa_beemetab_wild+pcoa_beemetab_comm)+plot_annotation(tag_levels = "A")+plot_layout(widths=c(1,1.5,1.5))
+```
+
+
+##Bee enrichment
+
+###Fig 5C - Number of modules
+
+```{r}
+beemetab_enrich<-beemetab_enrich %>% 
+  mutate(enrich_yn_label = case_when(enrich_yn=="YES"~"Yes",
+                                     enrich_yn=="NO"~"No"))
+
+beeenrich_modnums<-beemetab_enrich %>% 
+  ggplot(aes(x=enrich_yn_label)) + 
+  geom_bar()+
+  theme_classic()+
+   theme(panel.spacing = unit(.20, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
+    strip.background = element_rect(
+     color="white", linewidth=1.5, linetype="solid"),
+     strip.text = element_text(colour = "black"),
+    axis.line=element_blank(),
+     text = element_text(size = 14), 
+        axis.text.x = element_text(size = 13, color = "black"),
+        axis.text.y = element_text(size = 13, color = "black"),
+        axis.ticks.y = element_line(color = "black"),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
+  scale_x_discrete(name = "Differentially enriched", labels = function(x) str_wrap(x, width = 20))+
+  scale_y_continuous(name ="Number of modules", expand = c(0,0), limits=c(0,85))
+
+```
+
+###Fig 5A-C - Multipanel 
+
+```{r}
+fig_beemetab_rich_sig+pcoa_beemetab+beeenrich_modnums+plot_annotation(tag_levels = "A")+plot_layout(widths = c(2,3,2), ncol = 3, nrow = 1)
+```
+
+
+###Fig S13 - No enrich - present
+
+```{r}
+beemetab_enrich_no_final$mod_simp <- gsub(",[^,]+ =>.*| =>.*", "", beemetab_enrich_no_final$MODULE)
+
+mod_ids<-metab_1080 %>% 
+  select(module|module_name) %>% 
+  distinct()
+
+beemetab_enrich_no_final <- beemetab_enrich_no_final %>% 
+  left_join(mod_ids, join_by(MODULE=="module_name")) %>% 
+  mutate(mod_simp2 = paste(mod_simp, module, sep=", "))
+
+beemetab_enrich_no_final %>% 
+    filter(!(is.na(module_category))) %>% 
+  filter(!(module=="M00970"|module=="M00631"|module=="M00012"|module=="M00761"|module=="M00950"|module=="M00577"|module=="M00123"|module=="M00344"|module=="M00150"|module=="M00144"|module=="M00149"|module=="M00087"|module=="M00115"|module=="M00124"|module=="M00117"|module=="M00116")) %>% 
+  #filter(!(module_name=="D-Galacturonate degradation (bacteria), D-galacturonate => pyruvate + D-glyceraldehyde 3P")) %>%  
+  ggplot(aes(x=subspecies_label, y=mod_simp2, fill = module_category))+
+    geom_point(aes( alpha=perc_of_bees_75, fill = module_category), size=5,shape = 21) +
+facet_grid(rows = vars(module_category), scales = "free", space = "free")+
+  theme_classic()+
+   theme(text = element_text(size = 14), 
+        axis.text.x = element_markdown(size = 13, color = "black", angle=45,hjust=1),
+        axis.text.y = element_text(size = 12, color = "black"),
+        legend.position = "right",
+        legend.text = element_text(size=14),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        panel.border = element_rect(colour = "black", fill=NA, size=1),
+        strip.text.y = element_blank(),
+        strip.text.x = element_blank(),
+        panel.spacing = unit(0.2, "lines"))+
+  labs(fill="KEGG module \ncategory")+
+  scale_x_discrete(name = "Bee host", labels = c("BioBest *B. impatiens*", 
+                                 "Koppert *B. impatiens*", 
+                                 "Wild *B. impatiens*", 
+                                 "*B. rufocinctus*",
+                                 "*B. ternarius*", 
+                                 "*B. vagans*"))+
+  scale_size(guide = 'none')+
+  scale_alpha_continuous(name= "Percent of bees where \nmin. probability of \nmodule presence ≥ 0.75", limits=c(0.0,1.0), breaks=c(0.2,0.4,0.6,0.8,1.0))+
+  scale_y_discrete(name ="KEGG module", limits=rev)+
+  scale_fill_manual(values=c("Amino acid metabolism"="#82c236",
+                              "Biosynthesis of terpenoids and polyketides"="#009c7e",
+                              "Carbohydrate metabolism"="#026f9f",
+                              "Energy metabolism"="#692c75",
+                              "Glycan metabolism"="#fb7286",
+                              "Lipid metabolism"="#ec2b2b",
+                              "Metabolism of cofactors and vitamins"="#ff9400",
+                              "Nucleotide metabolism"="#ffc200"), labels = function(x) str_wrap(x, width = 20))+
+  guides(fill = guide_legend(override.aes = list(size=5), order=1), alpha=guide_legend(override.aes = list(size=5, fill = "#692c75"), order=2))
+```
+
+
+###Fig 5D - Yes enrich
+
+```{r}
+beemetab_enrich_yes_final$mod_simp <- gsub(",[^,]+ =>.*| =>.*", "", beemetab_enrich_yes_final$MODULE)
+beemetab_enrich_yes_final$mod_simp
+
+mod_ids<-metab_1080 %>% 
+  select(module|module_name) %>% 
+  distinct()
+
+beemetab_enrich_yes_final <- 
+beemetab_enrich_yes_final %>% 
+  left_join(mod_ids, join_by(MODULE=="module_name")) %>% 
+  mutate(mod_simp2 = paste(mod_simp, module, sep=", "))
+
+#beemetab_enrich_yes_final_fig<-
+beemetab_enrich_yes_final %>% 
+    filter(!(is.na(module_category))) %>% 
+  ggplot(aes(x=subspecies_label, y=mod_simp2, fill = module_category))+
+    geom_point(aes(size = enrich_yn, alpha=perc_of_bees_75, fill = module_category), shape=21) +
+facet_grid(rows = vars(module_category), scales = "free", space = "free")+
+  theme_classic()+
+   theme(text = element_text(size = 14), 
+        axis.text.x = element_markdown(size = 13, color = "black", angle=45,hjust=1),
+        axis.text.y = element_text(size = 12, color = "black"),
+        legend.title = element_text(size=12),
+        legend.position = "right",
+        axis.line=element_blank(),
+        legend.box = "vertical",
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        panel.border = element_rect(colour = "black", fill=NA, size=1),
+        strip.text.y = element_blank(),
+        strip.text.x = element_blank(),
+        panel.spacing = unit(0.2, "lines"))+
+  labs(fill="KEGG module category")+
+  scale_x_discrete(name = "Bee host", labels = c("BioBest *B. impatiens*", 
+                                 "Koppert *B. impatiens*", 
+                                 "Wild *B. impatiens*", 
+                                 "*B. rufocinctus*",
+                                 "*B. ternarius*", 
+                                 "*B. vagans*"))+
+  scale_size_manual(name="Module enriched in \nspecies", labels = c("No", "Yes"), values = c("NO" = 2.5, "YES" = 5), guide = 'none')+
+  scale_alpha_continuous(name= "Percent of bees where \nmin. probability of \nmodule presence ≥ 0.75", limits=c(0.0,1.0), breaks=c(0.2,0.4,0.6,0.8,1.0))+
+  scale_y_discrete(name ="KEGG module", limits=rev)+
+  scale_fill_manual(values=c("Amino acid metabolism"="#82c236",
+                              "Biosynthesis of terpenoids and polyketides"="#009c7e",
+                              "Carbohydrate metabolism"="#026f9f",
+                              "Energy metabolism"="#692c75",
+                              "Glycan metabolism"="#fb7286",
+                              "Lipid metabolism"="#ec2b2b",
+                              "Metabolism of cofactors and vitamins"="#ff9400",
+                              "Nucleotide metabolism"="#ffc200"), labels = function(x) str_wrap(x, width = 20))+
+  guides(fill = guide_legend(override.aes = list(size=5, shape=21), order=1), size=guide_legend(order=3, shape=21, fill = "#ffc200"), alpha=guide_legend(override.aes = list(size=5, fill = "#692c75", shape=21), order=2))
+```
+
+#Analysis
+
+##Abundance
+
+###All hosts
+
+```{r}
+#Type III for uneven sample size
+
+abun_model1 <- lm(log_total ~ sub_species, data = qpcr_bee)
+
+check_model(abun_model1)
+
+Anova(abun_model1, type=3)
+
+abun_model1_rank <- aov(rank(log_total) ~ sub_species, data = qpcr_bee)
+Anova(abun_model1_rank, type=3)
+
+dunnTest(log_total ~ sub_species, data = qpcr_bee, method="bonferroni")
+```
+
+###Wild hosts
+
+```{r}
+qpcr_bee_wild <- qpcr_bee %>% 
+  filter(type == "wild")
+
+abun_model2 <- lm(log_total ~ site_general+species, data = qpcr_bee_wild)
+
+Anova(abun_model2, type = 3, singular.ok = TRUE)
+
+check_model(abun_model2)
+
+
+abun_model2_rank <- aov(rank(log_total) ~ site_general + species, data = qpcr_bee_wild)
+
+
+Anova(abun_model2_rank, type = 3)
+```
+
+##Sequence reads
+
+###All hosts
+
+```{r}
+#Type III for uneven sample size
+
+seqfilt_model<- seqfilt_bee_long  %>% 
+  filter(read_data_type=="post_hostfiltering") %>% 
+  mutate(log_number = log10(number))
+
+seqfilt_model %>% 
+  group_by(subspecies_label) %>% 
+  summarize(mean = mean(log_number))
+
+reads_model1 <- lm(log_number ~ sub_species, data = seqfilt_model)
+
+check_model(reads_model1)
+Anova(reads_model1, type=3)
+
+reads_model1_rank <- aov(rank(log_number) ~ sub_species, data = seqfilt_model)
+Anova(reads_model1_rank, type=3)
+```
+
+
+###Wild hosts
+
+```{r}
+seqfilt_model2<- seqfilt_bee_long  %>% 
+  filter(read_data_type=="post_hostfiltering") %>% 
+  filter(type=="wild") 
+
+reads_model2 <- lm(number ~ sub_species+site_general, data = seqfilt_model2)
+
+check_model(reads_model2)
+Anova(reads_model2, type=3)
+
+reads_model2_rank <- aov(rank(number) ~ sub_species+site_general, data = seqfilt_model2)
+Anova(reads_model2_rank, type=3)
+```
+
+
+##Unmapped stats
+
+###All hosts
+
+```{r}
+unmapp_data <- cov_1070_ra_tax_long_bmd %>% 
+  filter(Genome=="unmapped")
+  
+unmap_model1 <- lm(rel_abun ~ sub_species, data = unmapp_data)
+Anova(unmap_model1, type = 3)
+
+
+check_model(unmap_model1)
+
+unmap_model1_rank <- aov(rank(rel_abun) ~ sub_species, data = unmapp_data)
+Anova(unmap_model1_rank, type=3)
+
+
+dunnTest(rel_abun ~ sub_species, data = unmapp_data, method="bonferroni")
+```
+
+###Wild
+
+
+```{r}
+unmapp_data_wild <- cov_1070_ra_tax_long_bmd %>% 
+  filter(Genome=="unmapped") %>% 
+  filter(type=="wild")
+  
+unmap_model2 <- lm(rel_abun ~ sub_species+site_general, data = unmapp_data_wild)
+Anova(unmap_model2, type = 3, singular.ok = TRUE)
+
+
+unmap_model2_rank <- aov(rank(rel_abun) ~ sub_species+site_general, data = unmapp_data_wild)
+Anova(unmap_model2_rank, type=3)
+
+```
+
+
+##Community structure phylotypes
+
+###All spechostsies
+
+```{r}
+adonis_allsp1 <- adonis2(cov_drep1070_pcoabray_matrix ~ sub_species, 
+                         bee_md, 
+                         permutations = 9999, 
+                         by = "margin")
+
+adonis_allsp1
+
+
+allsp_beta_med <- betadisper(cov_drep1070_pcoabray_matrix, bee_md$sub_species, type = "median")
+
+permutest(allsp_beta_med, permutations = 9999)
+
+pairwise.adonis2(cov_drep1070_pcoabray_matrix ~ sub_species, 
+                 bee_md, 
+                 nperm = 9999,
+                 p_adjust_m = "bonferroni")
+```
+
+###Wild bees only
+
+```{r}
+bee_md_wild <- bee_md %>% 
+  filter(type=="wild")
+
+adonis_wildsp1 <- adonis2(cov_drep1070_wild_pcoabray_matrix ~ sub_species+site_name, 
+                         bee_md_wild, 
+                         permutations = 9999, 
+                         by = "terms")
+
+adonis_wildsp1
+
+
+wildsp_beta_species_med <- betadisper(cov_drep1070_wild_pcoabray_matrix, bee_md_wild$species, type = "median")
+
+permutest(wildsp_beta_species_med, permutations = 9999)
+
+
+wildsp_beta_site_med <- betadisper(cov_drep1070_wild_pcoabray_matrix, bee_md_wild$site_general, type = "median")
+
+permutest(wildsp_beta_site_med, permutations = 9999)
+```
+
+##Community structure MAGs
+
+###All hosts
+
+```{r}
+adonis_mag_allsp1 <- adonis2(cov_drep1070_MAG_pcoabray_matrix ~ sub_species, 
+                         bee_md, 
+                         permutations = 9999, 
+                         by = "margin")
+
+adonis_mag_allsp1
+
+mag_allsp_beta_med <- betadisper(cov_drep1070_MAG_pcoabray_matrix, bee_md$sub_species, type = "median")
+
+permutest(mag_allsp_beta_med, permutations = 9999)
+
+
+pairwise.adonis2(cov_drep1070_MAG_pcoabray_matrix ~ sub_species, 
+                 bee_md, 
+                 nperm = 9999,
+                 p_adjust_m = "bonferroni")
+```
+
+###Wild hosts only
+
+```{r}
+bee_md_wild <- bee_md %>% 
+  filter(type=="wild")
+
+adonis_wildsp1 <- adonis2(cov_drep1070_wild_MAG_pcoabray_matrix ~ sub_species+site_name, 
+                         bee_md_wild, 
+                         permutations = 9999, 
+                         by = "terms")
+
+adonis_wildsp1
+
+
+mag_wildsp_beta_species_med <- betadisper(cov_drep1070_wild_MAG_pcoabray_matrix, bee_md_wild$species, type = "median")
+
+permutest(mag_wildsp_beta_species_med, permutations = 9999)
+
+
+mag_wildsp_beta_site_med <- betadisper(cov_drep1070_wild_MAG_pcoabray_matrix, bee_md_wild$site_general, type = "median")
+
+permutest(mag_wildsp_beta_site_med, permutations = 9999)
+```
+
+##Linear models for relative abundance
+
+###Apibacter
+
+```{r}
+api_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Apibacter") 
+
+api_model1 <- lm(relabun_gen ~ subspecies_label, data = api_lm)
+
+check_model(api_model1)
+
+api_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = api_lm)
+Anova(api_model1_rank, type=3)
+```
+
+###Arsenophonus
+
+```{r}
+arseno_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Arsenophonus") 
+
+arseno_model1 <- lm(relabun_gen ~ subspecies_label, data = arseno_lm)
+
+check_model(arseno_model1)
+
+arseno_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = arseno_lm)
+Anova(arseno_model1_rank, type=3)
+
+
+dunnTest(relabun_gen ~ subspecies_label, data = arseno_lm, method="bonferroni")
+```
+
+###Bifido
+
+```{r}
+bifido_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Bifidobacterium") 
+
+bifido_model1 <- lm(relabun_gen ~ subspecies_label, data = bifido_lm)
+
+check_model(bifido_model1)
+
+bifido_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = bifido_lm)
+Anova(bifido_model1_rank, type=3)
+
+```
+
+###Bombi
+
+```{r}
+bombi_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Bombilactobacillus") 
+
+bombi_model1 <- lm(relabun_gen ~ subspecies_label, data = bombi_lm)
+
+check_model(bombi_model1)
+
+bombi_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = bombi_lm)
+Anova(bombi_model1_rank, type=3)
+
+
+dunnTest(relabun_gen ~ subspecies_label, data = bombi_lm, method="bonferroni")
+
+```
+
+###Fructo
+
+```{r}
+fructo_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Fructobacillus") 
+
+fructo_model1 <- lm(relabun_gen ~ subspecies_label, data = fructo_lm)
+
+check_model(fructo_model1)
+
+fructo_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = fructo_lm)
+Anova(fructo_model1_rank, type=3)
+
+
+dunnTest(relabun_gen ~ subspecies_label, data = fructo_lm, method="bonferroni")
+
+```
+
+###Gilliamella
+
+```{r}
+gillia_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Gilliamella") 
+
+gillia_model1 <- lm(relabun_gen ~ subspecies_label, data = gillia_lm)
+
+check_model(gillia_model1)
+
+gillia_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = gillia_lm)
+Anova(gillia_model1_rank, type=3)
+
+dunnTest(relabun_gen ~ subspecies_label, data = gillia_lm, method="bonferroni")
+```
+
+###Lactobacillus
+
+```{r}
+lacto_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Lactobacillus") 
+
+lacto_model1 <- lm(relabun_gen ~ subspecies_label, data = lacto_lm)
+
+check_model(lacto_model1)
+
+lacto_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = lacto_lm)
+Anova(lacto_model1_rank, type=3)
+
+
+dunnTest(relabun_gen ~ subspecies_label, data = lacto_lm, method="bonferroni")
+```
+
+###LactoQ
+
+```{r}
+lacq_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Lactobacillaceae CALYQJ01") 
+
+lacq_model1 <- lm(relabun_gen ~ subspecies_label, data = lacq_lm)
+
+check_model(lacq_model1)
+
+lacq_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = lacq_lm)
+Anova(lacq_model1_rank, type=3)
+
+
+dunnTest(relabun_gen ~ subspecies_label, data = lacq_lm, method="bonferroni")
+```
+
+
+###Schmidhempelia
+
+```{r}
+schmid_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Schmidhempelia") 
+
+schmid_model1 <- lm(relabun_gen ~ subspecies_label, data = schmid_lm)
+
+check_model(schmid_model1)
+
+schmid_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = schmid_lm)
+Anova(schmid_model1_rank, type=3)
+
+
+dunnTest(relabun_gen ~ subspecies_label, data = schmid_lm, method="bonferroni")
+```
+
+###Snodgrassella
+
+```{r}
+snod_lm<-cov_drep1070_rgm_distinct %>% 
+  filter(genus=="Snodgrassella") 
+
+snod_model1 <- lm(relabun_gen ~ subspecies_label, data = snod_lm)
+
+check_model(snod_model1)
+
+snod_model1_rank <- aov(rank(relabun_gen) ~ subspecies_label, data = snod_lm)
+Anova(snod_model1_rank, type=3)
+
+dunnTest(relabun_gen ~ subspecies_label, data = snod_lm, method="bonferroni")
+
+```
+
+##Phylotype richness
+
+###All hosts
+
+```{r}
+#Type III for uneven sample size
+
+rich_model1 <- glm(value ~ sub_species, family = poisson, data = cov_drep1070_rich_data)
+
+Anova(rich_model1, type=3, test = "LR")
+
+
+check_model(rich_model1)
+check_overdispersion(rich_model1) #none detected
+
+
+rich_model1_means <- emmeans(object =rich_model1,
+                       specs = "sub_species")
+
+pairs(rich_model1_means)
+
+rich_model1_means_cld <- cld(object = rich_model1_means,
+                       adjust = "bonferroni",
+                       Letters = letters,
+                       alpha = 0.05)
+
+
+
+rich_model1_means_cld
+```
+
+###Wild hosts
+
+```{r}
+cov_drep1070_rich_data_wild <- cov_drep1070_rich_data %>% 
+  filter(type == "wild")
+
+#interaction nonsig
+rich_model2 <- glm(value ~ sub_species+site_general, family = poisson, data = cov_drep1070_rich_data_wild)
+
+Anova(rich_model2, type=3, test = "LR")
+
+check_model(rich_model2)
+check_overdispersion(rich_model2) #none detected
+```
+
+##Phylotype alpha diversity
+
+###All hosts
+
+```{r}
+#Type III for uneven sample size
+
+shann_model1 <- lm(value ~ sub_species, data = cov_drep1070_shann_data)
+
+check_model(shann_model1)
+
+Anova(shann_model1, type=3)
+
+
+shann_model1_rank<-lm(rank(value) ~ sub_species, data = cov_drep1070_shann_data)
+
+Anova(shann_model1_rank, type=3)
+
+```
+
+###Wild hosts
+
+```{r}
+cov_drep1070_shann_data_wild <- cov_drep1070_shann_data %>% 
+  filter(type == "wild")
+
+shann_model2 <- lm(value ~ sub_species+site_general, data = cov_drep1070_shann_data_wild)
+
+Anova(shann_model2, type=3, singular.ok = TRUE)
+
+check_model(shann_model2)
+
+shann_model2_rank <- aov(rank(value) ~ site_general + species, data = cov_drep1070_shann_data_wild)
+
+Anova(shann_model2_rank, type = 3)
+```
+
+
+##MAG richness
+
+###All hosts
+
+```{r}
+#Type III for uneven sample size
+
+magrich_model1 <- glm(value ~ sub_species, family = poisson, data = cov_drep1070_MAG_rich_data)
+
+Anova(magrich_model1, type=3, test = "LR")
+
+
+check_model(magrich_model1)
+check_overdispersion(magrich_model1) #detected
+
+
+magrich_model1_nb <- glm.nb(value ~ sub_species, data = cov_drep1070_MAG_rich_data)
+Anova(magrich_model1_nb, type=3, test = "LR")
+
+
+check_model(magrich_model1_nb)
+check_overdispersion(magrich_model1_nb) #not detected
+
+#pairwise
+magrich_model1_nb_means <- emmeans(magrich_model1_nb, specs = pairwise ~ sub_species)
+magrich_model1_nb_means
+
+#CLD
+
+# get (adjusted) weight means per group
+magrich_model1_nb_means <- emmeans(object = magrich_model1_nb,
+                       specs = "sub_species")
+
+# add letters to each mean
+magrich_model1_nb_means_cld <- cld(object = magrich_model1_nb_means,
+                       adjust = "bonferroni",
+                       Letters = letters,
+                       alpha = 0.05)
+```
+
+###Wild hosts
+
+```{r}
+cov_drep1070_MAG_rich_data_wild <- cov_drep1070_MAG_rich_data %>% 
+  filter(type == "wild")
+
+magrich_model2<- glm(value ~ species+site_general, family = poisson, data = cov_drep1070_MAG_rich_data_wild)
+Anova(magrich_model2, type=3, test = "LR", singular.ok =TRUE)
+
+check_model(magrich_model2)
+check_overdispersion(magrich_model2) #none detected
+
+#CLD
+
+# get (adjusted) weight means per group
+magrich_model2_means <- emmeans(object = magrich_model2,
+                       specs = "site_general")
+
+pairs(magrich_model2_means)
+
+# add letters to each mean
+magrich_model2_means_cld <- cld(object = magrich_model2_means,
+                       adjust = "bonferroni",
+                       Letters = letters,
+                       alpha = 0.05)
+```
+
+
+##MAG alpha diversity
+
+
+###All hosts
+
+```{r}
+#Type III for uneven sample size
+
+magshann_model1 <- lm(value ~ sub_species, data = cov_drep1070_MAG_shann_data)
+
+check_model(magshann_model1)
+
+Anova(magshann_model1, type=3)
+
+
+magshann_model1_rank <- aov(rank(value) ~ sub_species, data = cov_drep1070_MAG_shann_data)
+
+Anova(magshann_model1_rank, type = 3)
+```
+
+###Wild hosts
+
+```{r}
+cov_drep1070_MAG_shann_data_wild <- cov_drep1070_MAG_shann_data %>% 
+  filter(type == "wild")
+
+magshann_model2 <- lm(value ~ species+site_general, data = cov_drep1070_MAG_shann_data_wild)
+
+check_model(magshann_model2)
+
+Anova(magshann_model2, type=3, singular.ok = TRUE)
+
+magshann_model2_rank <- aov(rank(value) ~ species+site_general, data = cov_drep1070_MAG_shann_data_wild)
+
+Anova(magshann_model2_rank, type = 3)
+```
+
+
+##Bee metab richness
+
+###All hosts
+
+```{r}
+#Type III for uneven sample size
+bm_rich_model1 <- glm(value ~ sub_species, family = poisson, data = bee_metab_div_rich_data)
+
+Anova(bm_rich_model1, type=3, test = "LR")
+
+
+check_model(bm_rich_model1)
+check_overdispersion(bm_rich_model1) #none detected
+
+#pairwise
+bm_rich_m1_means <- emmeans(bm_rich_model1, specs = pairwise ~ sub_species)
+bm_rich_m1_means
+
+pairs(bm_rich_m1_means)
+
+#CLD
+
+# get (adjusted) weight means per group
+bm_rich_m1_means <- emmeans(object = bm_rich_model1,
+                       specs = "sub_species")
+
+# add letters to each mean
+bm_rich_m1_means_cld <- cld(object = bm_rich_m1_means,
+                       adjust = "bonferroni",
+                       Letters = letters,
+                       alpha = 0.05)
+```
+
+###Wild hosts
+
+```{r}
+bee_metab_div_rich_data_wild <- bee_metab_div_rich_data %>% 
+  filter(type == "wild")
+
+bm_rich_model2 <- glm(value ~ species+site_general, family = poisson, data = bee_metab_div_rich_data_wild)
+
+Anova(bm_rich_model2, type=3, test = "LR", singular.ok =TRUE)
+
+
+check_model(bm_rich_model2)
+check_overdispersion(bm_rich_model2) #detected
+
+bm_rich_model2_nb <- glm.nb(value ~ sub_species+site_general, data = bee_metab_div_rich_data_wild)
+Anova(bm_rich_model2_nb, type=3, test = "LR")
+
+check_model(bm_rich_model2_nb)
+check_overdispersion(bm_rich_model2_nb) #not detected
+```
+
+
+##Bee metab structure
+
+###All hosts
+
+```{r}
+bee_md_order <- bee_md %>% 
+  arrange(DNA_id)
+
+adonis_bm_allsp1 <- adonis2(bee_metab_div_pcoajacc_matrix ~ sub_species, 
+                         bee_md_order, 
+                         permutations = 9999, 
+                         by = "margin")
+
+adonis_bm_allsp1
+
+
+bm_allsp_beta_med <- betadisper(bee_metab_div_pcoajacc_matrix, bee_md_order$sub_species, type = "median")
+
+permutest(bm_allsp_beta_med, permutations = 9999)
+
+
+pairwise.adonis2(bee_metab_div_pcoajacc_matrix ~ sub_species, 
+                 bee_md_order, 
+                 nperm = 9999,
+                 p_adjust_m = "bonferroni")
+```
+
+###Wild hosts only
+
+```{r}
+bee_md_wild <- bee_md_order %>% 
+  filter(type=="wild")
+
+adonis_bm_wildsp1 <- adonis2(bee_metab_div_wild_pcoajacc_matrix ~ species+site_name, 
+                         bee_md_wild, 
+                         permutations = 9999, 
+                         by = "terms")
+
+adonis_bm_wildsp1
+
+bm_wildsp_beta_species_med <- betadisper(bee_metab_div_wild_pcoajacc_matrix, bee_md_wild$species, type = "median")
+
+permutest(bm_wildsp_beta_species_med, permutations = 9999)
+
+bm_wildsp_beta_site_med <- betadisper(bee_metab_div_wild_pcoajacc_matrix, bee_md_wild$site_general, type = "median")
+
+permutest(bm_wildsp_beta_site_med, permutations = 9999)
+```
+

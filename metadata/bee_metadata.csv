@@ -1,0 +1,40 @@
+﻿bee_id,DNA_id,DNA_ex_round,species,sub_species,type,sub_type,date,site_general,site_name,site_coord,fl_common,fl_latin,weather,temp,t_cap
+C1,Bi_BB1_1,2,impatiens,biobest_imp,commercial,biobest,2023-08-30,biobest,biobest_1,,,,,,
+C2,Bi_BB1_2,4,impatiens,biobest_imp,commercial,biobest,2023-08-30,biobest,biobest_1,,,,,,
+C3,Bi_BB2_1,3,impatiens,biobest_imp,commercial,biobest,2023-08-30,biobest,biobest_2,,,,,,
+C4,Bi_BB2_2,2,impatiens,biobest_imp,commercial,biobest,2023-08-30,biobest,biobest_2,,,,,,
+C5,Bi_BB3_1,6,impatiens,biobest_imp,commercial,biobest,2023-08-30,biobest,biobest_3,,,,,,
+C6,Bi_BB3_2,2,impatiens,biobest_imp,commercial,biobest,2023-08-30,biobest,biobest_3,,,,,,
+W61,Bi_BP_1,6,impatiens,wild_imp,wild,wild,2023-08-04,bruce_pit,bruce_pit,"45.32856, -75.79672",vipers_bugloss,Echium_vulgare,sunny,21 to 24,11:22
+W76,Bi_BP_2,3,impatiens,wild_imp,wild,wild,2023-08-04,bruce_pit,bruce_pit,"45.32856, -75.79672",queen_annes_lace,Daucus_carota,sunny,21 to 24,11:27
+W40,Bi_CM_1,3,impatiens,wild_imp,wild,wild,2023-08-02,chapman_mills,chapman_mills,"45.27419, -75.70224",purple_loosestrife,Lythrum_salicaria,sunny,22 to 25,15:15
+W51,Bi_CM_2,3,impatiens,wild_imp,wild,wild,2023-08-02,chapman_mills,chapman_mills,"45.27419, -75.70224",purple_loosestrife,Lythrum_salicaria,sunny,22 to 25,14:24
+W107,Bi_FG_1,2,impatiens,wild_imp,wild,wild,2023-08-06,fletchers,fletchers,"45.38556, -75.70371",goldenrod,Solidago_spp.,sunny ,24 to 26,11:20
+W98,Bi_FG_2,6,impatiens,wild_imp,wild,wild,2023-08-06,fletchers,fletchers,"45.38556, -75.70371",goldenrod,Solidago_spp.,sunny ,24 to 26,11:27
+W86,Bi_MB_1,3,impatiens,wild_imp,wild,wild,2023-08-05,mer_bleue,mer_bleue,"45.39296, -75.51289",bladder_campion,Silene_vulgaris,sunny ,24 to 26,9:24
+W80,Bi_MB_2,4,impatiens,wild_imp,wild,wild,2023-08-05,mer_bleue,mer_bleue,"45.39296, -75.51289",purple_loosestrife,Lythrum_salicaria,sunny ,24 to 26,9:32
+W23,Bi_ML_1,6,impatiens,wild_imp,wild,wild,2023-08-02,mud_lake,mud_lake,"45.37082, -75.79874",tufted_vetch,Vicia_cracca,sunny,19 to 22,11:25
+W59,Bi_ML_2,4,impatiens,wild_imp,wild,wild,2023-08-04,mud_lake,mud_lake,"45.37082, -75.79874",long_leaved_speedwell,Veronica_longifolia,sunny,21 to 24,12:35
+W77,Bi_PI_1,6,impatiens,wild_imp,wild,wild,2023-08-05,petrie_island,petrie_island,"45.50132, -75.49855",white_sweetclover,Melilotus_albus,sunny ,24 to 26,12:00
+W85,Bi_PI_2,3,impatiens,wild_imp,wild,wild,2023-08-05,petrie_island,petrie_island,"45.50132, -75.49855",pickerelweed,Pontederia_cordata,sunny ,24 to 26,11:40
+W44,Br_CM_1,6,rufocinctus,rufocinctus,wild,wild,2023-08-02,chapman_mills,chapman_mills,"45.27419, -75.70224",purple_loosestrife,Lythrum_salicaria,sunny,22 to 25,14:50
+W56,Br_CM_2,4,rufocinctus,rufocinctus,wild,wild,2023-08-02,chapman_mills,chapman_mills,"45.27419, -75.70224",joe_pye_weed,Eutrochium_purpureum,sunny,22 to 25,14:40
+W96,Br_FG_1,4,rufocinctus,rufocinctus,wild,wild,2023-08-06,fletchers,fletchers,"45.38556, -75.70371",brown_knapweed,Centaurea_jacea,sunny ,24 to 26,11:40
+W111,Br_FG_2,5,rufocinctus,rufocinctus,wild,wild,2023-08-06,fletchers,fletchers,"45.38556, -75.70371",brown_knapweed,Centaurea_jacea,sunny ,24 to 26,11:43
+W38,Br_ML_1,4,rufocinctus,rufocinctus,wild,wild,2023-08-02,mud_lake,mud_lake,"45.37082, -75.79874",long_leaved_speedwell,Veronica_longifolia,sunny,19 to 22,11:56
+W65,Br_ML_2,1,rufocinctus,rufocinctus,wild,wild,2023-08-04,mud_lake,mud_lake,"45.37082, -75.79874",long_leaved_speedwell,Veronica_longifolia,sunny,21 to 24,13:00
+W39,Bt_CM_1,1,ternarius,ternarius,wild,wild,2023-08-02,chapman_mills,chapman_mills,"45.27419, -75.70224",joe_pye_weed,Eutrochium_purpureum,sunny,22 to 25,15:29
+W92,Bt_MB_2,1,ternarius,ternarius,wild,wild,2023-08-05,mer_bleue,mer_bleue,"45.39296, -75.51289",purple_loosestrife,Lythrum_salicaria,sunny ,24 to 26,9:38
+W34,Bt_ML_1,1,ternarius,ternarius,wild,wild,2023-08-02,mud_lake,mud_lake,"45.37082, -75.79874",long_leaved_speedwell,Veronica_longifolia,sunny,19 to 22,11:40
+W35,Bt_ML_2,3,ternarius,ternarius,wild,wild,2023-08-02,mud_lake,mud_lake,"45.37082, -75.79874",long_leaved_speedwell,Veronica_longifolia,sunny,19 to 22,11:20
+W123,Bv_BP_2,2,vagans,vagans,wild,wild,2023-08-09,bruce_pit,bruce_pit,"45.32856, -75.79672",red_clover,Trifolium_pratense,sunny,24 to 26,12:34
+W66,Bv_ML_1,6,vagans,vagans,wild,wild,2023-08-04,mud_lake,mud_lake,"45.37082, -75.79874",long_leaved_speedwell,Veronica_longifolia,sunny,21 to 24,13:15
+W58,Bv_ML_2,2,vagans,vagans,wild,wild,2023-08-04,mud_lake,mud_lake,"45.37082, -75.79874",long_leaved_speedwell,Veronica_longifolia,sunny,21 to 24,13:17
+W84,Bv_PI_1,6,vagans,vagans,wild,wild,2023-08-05,petrie_island,petrie_island,"45.50132, -75.49855",showy_tick_trefoil,Desmodium_canadense,sunny ,24 to 26,12:10
+W83,Bv_PI_2,2,vagans,vagans,wild,wild,2023-08-05,petrie_island,petrie_island,"45.50132, -75.49855",pickerelweed,Pontederia_cordata,sunny ,24 to 26,11:36
+C7,Bi_KP1_1,4,impatiens,kopper_imp,commercial,koppert,2023-08-31,koppert,koppert_1,,,,,,
+C8,Bi_KP1_2,3,impatiens,kopper_imp,commercial,koppert,2023-08-31,koppert,koppert_1,,,,,,
+C9,Bi_KP2_1,3,impatiens,kopper_imp,commercial,koppert,2023-08-31,koppert,koppert_2,,,,,,
+C10,Bi_KP2_2,4,impatiens,kopper_imp,commercial,koppert,2023-08-31,koppert,koppert_2,,,,,,
+C11,Bi_KP3_1,5,impatiens,kopper_imp,commercial,koppert,2023-08-31,koppert,koppert_3,,,,,,
+C12,Bi_KP3_2,1,impatiens,kopper_imp,commercial,koppert,2023-08-31,koppert,koppert_3,,,,,,

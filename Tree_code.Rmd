@@ -1,0 +1,287 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+#Load packages
+
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("ggtree")
+
+library(tidyverse)
+library(ggtext)
+```
+
+
+#Load data
+
+##Metadata
+
+```{r}
+bee_md <- read_csv("metadata/bee_metadata.csv")
+bee_md <- bee_md %>% 
+  select(bee_id:t_cap)
+
+md_1080 <- read_csv("metadata/metadata_1080.csv")
+```
+
+
+##MAG taxonomy
+
+```{r}
+tax_master <- read_csv("data/MAG_taxonomy_simp.csv")
+tax_master_metab <- read_csv("data/MAG_taxonomy_simp_metab.csv")
+```
+
+##Trees
+
+```{r}
+tree_drep98 <- ggtree::read.tree("data/drep98.tre")
+tree_mag1080 <- read.tree("data/mags1080_nrd.tre")
+```
+
+#Format data
+
+##Bee metadata
+
+```{r}
+bee_md <- bee_md %>% 
+  mutate(species_origin = paste(species, type, sep = "_")) %>% 
+  mutate(species_label = species_origin) %>% 
+  mutate(subspecies_label = sub_species) %>% 
+  mutate(site_label = site_general)
+
+bee_md$species_label <- recode_factor(bee_md$species_label, impatiens_wild = "Wild B. impatiens", impatiens_commercial = "Commercial B. impatiens", rufocinctus_wild = "B. rufocinctus", ternarius_wild = "B. ternarius", vagans_wild = "B. vagans")
+
+bee_md$species_label <- factor(bee_md$species_label, levels = c("Commercial B. impatiens", "Wild B. impatiens", "B. rufocinctus", "B. ternarius", "B. vagans"))
+
+
+bee_md$subspecies_label <- recode_factor(bee_md$subspecies_label, wild_imp = "Wild B. impatiens", biobest_imp = "BioBest B. impatiens", kopper_imp = "Koppert B. impatiens", rufocinctus = "B. rufocinctus", ternarius = "B. ternarius", vagans = "B. vagans")
+
+bee_md$subspecies_label <- factor(bee_md$subspecies_label, levels = c("BioBest B. impatiens", "Koppert B. impatiens", "Wild B. impatiens", "B. rufocinctus", "B. ternarius", "B. vagans"))
+
+bee_md$site_label <- recode_factor(bee_md$site_label, biobest = "BioBest", koppert = "Koppert", bruce_pit = "BP", chapman_mills = "CM", fletchers = "FG", mer_bleue = "MB", mud_lake = "ML", petrie_island = "PI")
+
+bee_md$site_label <- factor(bee_md$site_label, levels = c("BioBest", "Koppert", "BP", "CM", "FG", "MB", "ML", "PI"))
+```
+
+##Trees
+
+Uses the cov_drep1070_ra_MAG data from main R analysis.
+
+###drep98
+
+```{r}
+tree_drep98_data <- as_tibble(tree_drep98)
+
+tree_drep98_labels <- cov_drep1070_ra_MAG %>% 
+  ungroup() %>% 
+  select(Genome|species_id|genus) %>% 
+  distinct() %>% 
+  rename(label = Genome, label2 = species_id)
+
+tree_drep98_data <- tree_drep98_data %>% 
+  left_join(tree_drep98_labels)
+
+tree_drep98_final <- tidytree::as.treedata(tree_drep98_data)
+```
+
+###mag1080
+
+```{r}
+tree_mag1080_labels <- md_1080 %>% 
+  ungroup() %>% 
+  select(genome|species_cluster2|genus|bee_sp|site_general) %>% 
+  distinct() %>% 
+  rename(label = genome, label2 = species_cluster2) %>% 
+  mutate(label3 = ggtree::label_pad(label2))
+
+tree_mag1080_data <- as_tibble(tree_mag1080)
+
+tree_mag1080_data <- tree_mag1080_data %>% 
+  left_join(tree_mag1080_labels)
+
+tree_mag1080_final <- tidytree::as.treedata(tree_mag1080_data)
+```
+
+
+#Figures
+
+##drep98
+
+```{r}
+#figt_drep98<-
+ggplot(tree_drep98_final) + 
+  ggtree::geom_tree() + 
+  ggtree::theme_tree() + 
+  ggtree::geom_tiplab(geom="label", label.size = NA, aes(label=label2, fontface=3, color=genus), align=TRUE, hjust=1,offset = 0.8,linetype = "dotted", linesize = .7)+
+
+  
+  #xlim(0, 2.5)+
+  scale_color_manual(name = "Genus", 
+                    values = c("Apibacter"="#E38170",
+                               "Arsenophonus"="#c58f8d",
+                               "Bifidobacterium"="#4b416e",
+                               "Bombilactobacillus"="#7e7daa",
+                               "Fructobacillus"="#355928",
+                               "Gilliamella"="#ACA33A",
+                               "Lactobacillaceae CALYQJ01"="#2a6382",
+                               "Lactobacillus"="#3c8db9", 
+                               "Schmidhempelia"="#FFB81F",
+                               "Snodgrassella"="#B0799A"
+                               ), guide = "none")
+```
+
+
+##mag1080
+
+Use code from this tutorial https://thackl.github.io/ggtree-composite-plots
+
+###Functions
+
+```{r}
+tree_y <-  function(ggtree, data){
+  if(!inherits(ggtree, "ggtree"))
+    stop("not a ggtree object")
+  left_join(select(data, label), select(ggtree$data, label, y)) %>%
+    pull(y)
+}
+
+scale_y_tree <- function(expand=expand_scale(0, 0.6), ...){
+    scale_y_continuous(expand=expand, ...)
+}
+
+# get the range of the ggtree y-axis data
+tree_ylim <- function(ggtree){
+  if(!inherits(ggtree, "ggtree"))
+    stop("not a ggtree object")
+  range(ggtree$data$y)
+}
+
+# plot data next to a ggtree aligned by shared labels
+ggtreeplot <- function(ggtree, data = NULL, mapping = aes(), flip=FALSE,
+     expand_limits=expand_scale(0,.6), ...){
+  
+  if(!inherits(ggtree, "ggtree"))
+    stop("not a ggtree object")
+
+  # match the tree limits
+  limits <- tree_ylim(ggtree)
+  limits[1] <- limits[1] + (limits[1] * expand_limits[1]) - expand_limits[2]
+  limits[2] <- limits[2] + (limits[2] * expand_limits[3]) + expand_limits[4]
+  
+  if(flip){
+    mapping <- modifyList(aes_(x=~x), mapping)
+    data <- mutate(data, x=tree_y(ggtree, data))
+    gg <- ggplot(data=data, mapping = mapping, ...) +
+      scale_x_continuous(limits=limits, expand=c(0,0))
+  }else{
+    mapping <- modifyList(aes_(y=~y), mapping)
+    data <- mutate(data, y=tree_y(ggtree, data))
+    gg <- ggplot(data=data, mapping = mapping, ...) +
+      scale_y_continuous(limits=limits, expand=c(0,0))
+  }
+  gg
+}
+
+# get rid of superfluous axis - this works after coord_flip, so it also works
+# for the rotated histogram
+no_y_axis <- function () 
+  theme(axis.line.y = element_blank(), 
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+```
+
+
+###Plots
+
+```{r}
+figt_mag1080<-
+ggtree::ggtree(tree_mag1080_final) + 
+  ggtree::geom_tiplab(geom="label",label.size = NA, label.padding=unit(0,"lines"),aes(label=label2, fontface=3, color=genus), align=TRUE, hjust=1,offset = 0.8,linetype = "dotted", linesize = .7)+
+  xlim(0, 2.5)+
+  scale_x_continuous(expand=expansion(0.2)) + # make more room for the labels
+  scale_y_tree()+
+  scale_color_manual(name = "Genus", 
+                    values = c("Apibacter"="#E38170",
+                               "Arsenophonus"="#c58f8d",
+                               "Bifidobacterium"="#4b416e",
+                               "Bombilactobacillus"="#7e7daa",
+                               "Fructobacillus"="#355928",
+                               "Gilliamella"="#ACA33A",
+                               "Lactobacillaceae CALYQJ01"="#2a6382",
+                               "Lactobacillus"="#3c8db9", 
+                               "Schmidhempelia"="#FFB81F",
+                               "Snodgrassella"="#B0799A"
+                               ), guide = "none")
+
+
+figt_mag1080_sp<-
+  ggtreeplot(figt_mag1080, tree_mag1080_labels, aes(y=1), flip=TRUE)+
+    geom_point(size=3, aes(color = bee_sp))+
+  coord_flip()+
+  theme_classic()+
+  theme(
+    panel.spacing = element_blank(),
+        panel.border = element_blank(), 
+    strip.background = element_blank(),
+     strip.text = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line=element_blank(),
+    legend.text = element_markdown(size=10),
+        legend.position = "right")+
+  scale_color_manual(name="Bee species", values = c("BioBest B. impatiens"="#03286C",
+                               "Koppert B. impatiens"="#026494",
+                              "Wild B. impatiens"="#4eacc5",
+                               "B. rufocinctus"="#AF0000",
+                               "B. ternarius"="#E14300",
+                               "B. vagans"="#FFC200"),
+                      labels = c("*B. rufocinctus*", 
+                                 "*B. ternarius*", 
+                                 "*B. vagans*", 
+                                 "BioBest *B. impatiens*",
+                                 "Koppert *B. impatiens*", 
+                                 "Wild *B. impatiens*"))
+
+
+figt_mag1080_site<-
+  ggtreeplot(figt_mag1080, tree_mag1080_labels, aes(y=1), flip=TRUE)+
+    geom_point(size=3, aes(shape=site_general))+
+  coord_flip()+
+  theme_classic()+
+  theme(
+    panel.spacing = element_blank(),
+        panel.border = element_blank(), 
+    strip.background = element_blank(),
+     strip.text = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line=element_blank(),
+    legend.text = element_markdown(size=10),
+    legend.position = "right")+
+  scale_shape_manual(name = "Site", values = c(
+                                "Mer Bleue"=7,
+                                "Bruce Pit"=17,
+                                "Chapman Mills"=19,
+                                "Mud Lake"=10,
+                                "Petrie Island"=9,
+                                "Fletcher's Wildlife Garden"=15
+                                  ))
+```
+
+###Multipanel mag580
+
+```{r}
+(figt_mag1080|plot_spacer()|figt_mag1080_sp|figt_mag1080_site)+ 
+  plot_layout(widths = c(10,-1.5,1,1), guides = 'collect')
+```
+
