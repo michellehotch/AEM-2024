@@ -3186,6 +3186,60 @@ facet_grid(rows = vars(module_category), scales = "free", space = "free")+
   guides(fill = guide_legend(override.aes = list(size=5), order=1), alpha=guide_legend(override.aes = list(size=5, fill = "#692c75"), order=2))
 ```
 
+###Fig S14 - No enrich - absent
+
+```{r}
+beemetab_enrich_no_final$mod_simp <- gsub(",[^,]+ =>.*| =>.*", "", beemetab_enrich_no_final$MODULE)
+
+mod_ids<-metab_1080 %>% 
+  select(module|module_name) %>% 
+  distinct()
+
+beemetab_enrich_no_final <- beemetab_enrich_no_final %>% 
+  left_join(mod_ids, join_by(MODULE=="module_name")) %>% 
+  mutate(mod_simp2 = paste(mod_simp, module, sep=", "))
+
+beemetab_enrich_no_final %>% 
+    filter(!(is.na(module_category))) %>% 
+  filter(module=="M00970"|module=="M00631"|module=="M00012"|module=="M00761"|module=="M00950"|module=="M00577"|module=="M00123"|module=="M00344"|module=="M00150"|module=="M00144"|module=="M00149"|module=="M00087"|module=="M00115"|module=="M00124"|module=="M00117"|module=="M00116") %>% 
+  #filter(!(module_name=="D-Galacturonate degradation (bacteria), D-galacturonate => pyruvate + D-glyceraldehyde 3P")) %>%  
+  ggplot(aes(x=subspecies_label, y=mod_simp2, fill = module_category))+
+    geom_point(aes( alpha=perc_of_bees_75, fill = module_category), size=5,shape = 21) +
+facet_grid(rows = vars(module_category), scales = "free", space = "free")+
+  theme_classic()+
+   theme(text = element_text(size = 14), 
+        axis.text.x = element_markdown(size = 13, color = "black", angle=45,hjust=1),
+        axis.text.y = element_text(size = 12, color = "black"),
+        legend.position = "right",
+        legend.text = element_text(size=14),
+        axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)),
+        panel.border = element_rect(colour = "black", fill=NA, size=1),
+        strip.text.y = element_blank(),
+        strip.text.x = element_blank(),
+        panel.spacing = unit(0.2, "lines"))+
+  labs(fill="KEGG module \ncategory")+
+  scale_x_discrete(name = "Bee host", labels = c("BioBest *B. impatiens*", 
+                                 "Koppert *B. impatiens*", 
+                                 "Wild *B. impatiens*", 
+                                 "*B. rufocinctus*",
+                                 "*B. ternarius*", 
+                                 "*B. vagans*"))+
+  scale_size(guide = 'none')+
+  scale_alpha_continuous(name= "Percent of bees where \nmin. probability of \nmodule presence ≥ 0.75", limits=c(0.0,1.0), breaks=c(0.2,0.4,0.6,0.8,1.0))+
+  scale_y_discrete(name ="KEGG module", limits=rev)+
+  scale_fill_manual(values=c("Amino acid metabolism"="#82c236",
+                              "Biosynthesis of terpenoids and polyketides"="#009c7e",
+                              "Carbohydrate metabolism"="#026f9f",
+                              "Energy metabolism"="#692c75",
+                              "Glycan metabolism"="#fb7286",
+                              "Lipid metabolism"="#ec2b2b",
+                              "Metabolism of cofactors and vitamins"="#ff9400",
+                              "Nucleotide metabolism"="#ffc200"), labels = function(x) str_wrap(x, width = 20))+
+  guides(fill = guide_legend(override.aes = list(size=5), order=1), alpha=guide_legend(override.aes = list(size=5, fill = "#692c75"), order=2))
+```
+
+
 
 ###Fig 5D - Yes enrich
 
