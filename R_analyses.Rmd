@@ -3283,7 +3283,7 @@ facet_grid(rows = vars(module_category), scales = "free", space = "free")+
                                  "*B. rufocinctus*",
                                  "*B. ternarius*", 
                                  "*B. vagans*"))+
-  scale_size_manual(name="Module enriched in \nspecies", labels = c("No", "Yes"), values = c("NO" = 2.5, "YES" = 5), guide = 'none')+
+  scale_size_manual(name="Module enriched in \nhost", labels = c("No", "Yes"), values = c("NO" = 2.5, "YES" = 5), guide = 'none')+
   scale_alpha_continuous(name= "Percent of bees where \nmin. probability of \nmodule presence ≥ 0.75", limits=c(0.0,1.0), breaks=c(0.2,0.4,0.6,0.8,1.0))+
   scale_y_discrete(name ="KEGG module", limits=rev)+
   scale_fill_manual(values=c("Amino acid metabolism"="#82c236",
