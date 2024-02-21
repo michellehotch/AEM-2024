@@ -42,8 +42,6 @@ bee_md <- bee_md %>%
   select(bee_id:t_cap)
 
 md_1080 <- read_csv("metadata/metadata_1080.csv")
-
-hit_md <- read_csv("metadata/kegg_hit_md.csv")
 ```
 
 ##Sequence numbers
@@ -75,7 +73,6 @@ cov_drep1070 <- read_csv("data/coverage_drep_1070MAGs.csv")
 
 ```{r}
 metab_1080 <- read.csv("data/MAGs_metab1080_modules.csv")
-hits_1080 <- read.csv("data/MAGs_metab1080_hits.csv")
 metab_enrich_taxa <- read.table("data/micro_taxa2_enrich.txt", sep="\t", header=TRUE)
 beemetab_enrich <- read.table("data/beemetab_enrich.txt", sep="\t", header=TRUE)
 ```
@@ -1071,7 +1068,7 @@ ggplot(aes(x = subspecies_label, y = log_number, fill = subspecies_label, color 
         legend.position = "none",
         axis.title.y = element_text(size = 14, margin = margin(t = 0, r = 20, b = 0, l = 0)),
         axis.title.x = element_blank())+
-    labs(y = "Number of reads")+
+    labs(y = expression(Log[10]~"number of reads"))+
   scale_x_discrete(name="Bee host", 
                    labels = c(
                      expression("BB"),
