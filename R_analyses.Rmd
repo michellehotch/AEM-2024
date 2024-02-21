@@ -956,6 +956,13 @@ beemetab_enrich <- beemetab_enrich %>%
   mutate(enrich_yn = case_when(adjusted_q_value < 0.05 ~ "YES", 
                                adjusted_q_value >= 0.05 ~ "NO"))
 
+enrich_mod_metadata<-metab_1080_md %>% 
+  ungroup() %>% 
+  select(module_name|module_category|module_subcategory) %>% 
+  distinct()
+
+beemetab_enrich <- beemetab_enrich %>% 
+  left_join(enrich_mod_metadata, join_by(MODULE==module_name)) 
 
 beemetab_enrich_yes <- beemetab_enrich %>% 
   filter(enrich_yn=="YES")
@@ -970,11 +977,6 @@ beemetab_enrich_fix<- gather(beemetab_enrich_fix, key = "treatment", value = "as
 
 beemetab_enrich_fix <- beemetab_enrich_fix %>% 
   filter(!(is.na(associated_groups)))
-
-enrich_mod_metadata<-metab_1080_md %>% 
-  ungroup() %>% 
-  select(module_name|module_category|module_subcategory) %>% 
-  distinct()
   
 bee_md_speciesnames <- bee_md %>% 
   select(sub_species|subspecies_label) %>% 
@@ -984,7 +986,6 @@ bee_md_speciesnames <- bee_md %>%
 beemetab_enrich_fix <- beemetab_enrich_fix %>% 
   left_join(enrich_mod_metadata, join_by(MODULE==module_name)) %>% 
   left_join(bee_md_speciesnames, join_by(associated_groups=="sub_species"))
-
 
 beemetab_enrich_yes_mods <- beemetab_enrich_fix %>% 
   select(MODULE) %>% 
@@ -996,8 +997,6 @@ beemetab_enrich_yes_final <- beemetab_enrich_fix %>%
   right_join(bee_metab_md6_75_final, join_by(MODULE=="module_name", subspecies_label)) %>% 
   dplyr::filter(MODULE %in% beemetab_enrich_yes_mods$MODULE) %>% 
   mutate(enrich_yn = ifelse(is.na(enrich_yn), "NO", enrich_yn))
-  
-
 
 beemetab_enrich_no_final <- beemetab_enrich_no %>% 
   select(MODULE|enrich_yn) %>% 
@@ -2957,7 +2956,7 @@ labels_data <- data.frame(
 
 # Add labels to the plot using annotate
 fig_beemetab_rich_sig<-fig_beemetab_rich +
-  annotate("text", x = labels_data$x, y = rep(103, nrow(labels_data)),
+  annotate("text", x = labels_data$x, y = rep(100, nrow(labels_data)),
            label = labels_data$sub_species, size = 5, vjust = -0.5)
 
 fig_beemetab_rich_sig
@@ -3102,9 +3101,25 @@ beemetab_enrich<-beemetab_enrich %>%
   mutate(enrich_yn_label = case_when(enrich_yn=="YES"~"Yes",
                                      enrich_yn=="NO"~"No"))
 
-beeenrich_modnums<-beemetab_enrich %>% 
-  ggplot(aes(x=enrich_yn_label)) + 
-  geom_bar()+
+beemetab_enrich<-beemetab_enrich %>% 
+  mutate(mod_cat_label = case_when(module_category=="Carbohydrate metabolism"~"Carbohydrate",
+                                   module_category=="Amino acid metabolism"~"Amino acid",
+                                   module_category=="Biosynthesis of terpenoids and polyketides"~"Terpenoids and polyketides",
+                                   module_category=="Energy metabolism"~"Energy",
+                                   module_category=="Glycan metabolism"~"Glycan",
+                                   module_category=="Lipid metabolism"~"Lipid",
+                                   module_category=="Metabolism of cofactors and vitamins"~"Cofactors and vitamins",
+                                   module_category=="Nucleotide metabolism"~"Nucleotide"))
+
+factor(bee_md$species_label, levels = c("Commercial B. impatiens", "Wild B. impatiens", "B. rufocinctus", "B. ternarius", "B. vagans"))
+
+beemetab_enrich$mod_cat_label <- factor(beemetab_enrich$mod_cat_label, levels = c("Amino acid", "Terpenoids and polyketides", "Carbohydrate", "Energy", "Glycan","Lipid","Cofactors and vitamins", "Nucleotide"))
+
+
+beeenrich_modnums<-
+beemetab_enrich %>% 
+  ggplot(aes(x=module_category, alpha=enrich_yn_label, fill=module_category)) + 
+  geom_bar(position = position_dodge2(width = 0.9, preserve = "single"))+
   theme_classic()+
    theme(panel.spacing = unit(.20, "lines"),
         panel.border = element_rect(color = "black", fill = NA, linewidth = 1), 
@@ -3112,21 +3127,38 @@ beeenrich_modnums<-beemetab_enrich %>%
      color="white", linewidth=1.5, linetype="solid"),
      strip.text = element_text(colour = "black"),
     axis.line=element_blank(),
-     text = element_text(size = 14), 
-        axis.text.x = element_text(size = 13, color = "black"),
+     text = element_text(size = 16), 
+    legend.title = element_text(size=14),
+        axis.text.x = element_text(size = 11, color = "black"),
         axis.text.y = element_text(size = 13, color = "black"),
         axis.ticks.y = element_line(color = "black"),
         axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)),
         axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
-  scale_x_discrete(name = "Differentially enriched", labels = function(x) str_wrap(x, width = 20))+
-  scale_y_continuous(name ="Number of modules", expand = c(0,0), limits=c(0,85))
+  scale_x_discrete(name = "Module category", labels = function(x) str_wrap(x, width = 14))+
+  scale_y_continuous(name ="Number of modules", expand = c(0,0), limits=c(0,20))+
+  scale_alpha_manual(name = "Differentially \nenriched across \nbee hosts", values=c("No"=1, "Yes"=0.5))+
+   scale_fill_manual(values=c("Amino acid metabolism"="#82c236",
+                              "Biosynthesis of terpenoids and polyketides"="#009c7e",
+                              "Carbohydrate metabolism"="#026f9f",
+                              "Energy metabolism"="#692c75",
+                              "Glycan metabolism"="#fb7286",
+                              "Lipid metabolism"="#ec2b2b",
+                              "Metabolism of cofactors and vitamins"="#ff9400",
+                              "Nucleotide metabolism"="#ffc200"), labels = function(x) str_wrap(x, width = 20))+
+  guides(fill = "none", alpha=guide_legend(override.aes = list(fill = "#82c236"), order=1))
 
 ```
 
-###Fig 5A-C - Multipanel 
+###Fig 5 - Multipanel 
 
 ```{r}
-fig_beemetab_rich_sig+pcoa_beemetab+beeenrich_modnums+plot_annotation(tag_levels = "A")+plot_layout(widths = c(2,3,2), ncol = 3, nrow = 1)
+layout <- "
+AABBB
+CCCCC
+"
+
+fig_beemetab_rich_sig+pcoa_beemetab+beeenrich_modnums+plot_annotation(tag_levels = "A")+
+  plot_layout(design=layout)
 ```
 
 
@@ -3238,7 +3270,7 @@ facet_grid(rows = vars(module_category), scales = "free", space = "free")+
 
 
 
-###Fig 5D - Yes enrich
+###Fig S15 - Yes enrich
 
 ```{r}
 beemetab_enrich_yes_final$mod_simp <- gsub(",[^,]+ =>.*| =>.*", "", beemetab_enrich_yes_final$MODULE)
@@ -3280,7 +3312,7 @@ facet_grid(rows = vars(module_category), scales = "free", space = "free")+
                                  "*B. rufocinctus*",
                                  "*B. ternarius*", 
                                  "*B. vagans*"))+
-  scale_size_manual(name="Module enriched in \nhost", labels = c("No", "Yes"), values = c("NO" = 2.5, "YES" = 5), guide = 'none')+
+  scale_size_manual(name="Module enriched in \nhost", labels = c("Present and \nnot enriched", "Enriched"), values = c("NO" = 2.5, "YES" = 5), guide = 'none')+
   scale_alpha_continuous(name= "Percent of bees where \nmin. probability of \nmodule presence ≥ 0.75", limits=c(0.0,1.0), breaks=c(0.2,0.4,0.6,0.8,1.0))+
   scale_y_discrete(name ="KEGG module", limits=rev)+
   scale_fill_manual(values=c("Amino acid metabolism"="#82c236",
