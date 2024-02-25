@@ -943,7 +943,8 @@ beemetab_anvienrich_prep <- bee_metab_md6 %>%
   mutate(stepwise_module_is_complete = case_when(prob_pres_inbee >= 0.75 ~ "TRUE", 
                                prob_pres_inbee < 0.75 ~ "FALSE"))
 
-write.csv(beemetab_anvienrich_prep, "output/beemetab_anvienrich_prep.csv")
+#write csv to destination of choice
+#write.csv(beemetab_anvienrich_prep, "PATH/beemetab_anvienrich_prep.csv")
 ```
 
 
