@@ -3119,7 +3119,7 @@ beemetab_enrich$mod_cat_label <- factor(beemetab_enrich$mod_cat_label, levels = 
 
 beeenrich_modnums<-
 beemetab_enrich %>% 
-  ggplot(aes(x=module_category, alpha=enrich_yn_label, fill=module_category)) + 
+  ggplot(aes(x=module_category, fill=enrich_yn_label)) + 
   geom_bar(position = position_dodge2(width = 0.9, preserve = "single"))+
   theme_classic()+
    theme(panel.spacing = unit(.20, "lines"),
@@ -3137,17 +3137,7 @@ beemetab_enrich %>%
         axis.title.x = element_text(size = 16, margin = margin(t = 20, r = 0, b = 0, l = 0)))+
   scale_x_discrete(name = "Module category", labels = function(x) str_wrap(x, width = 14))+
   scale_y_continuous(name ="Number of modules", expand = c(0,0), limits=c(0,20))+
-  scale_alpha_manual(name = "Differentially \nenriched across \nbee hosts", values=c("No"=1, "Yes"=0.5))+
-   scale_fill_manual(values=c("Amino acid metabolism"="#82c236",
-                              "Biosynthesis of terpenoids and polyketides"="#009c7e",
-                              "Carbohydrate metabolism"="#026f9f",
-                              "Energy metabolism"="#692c75",
-                              "Glycan metabolism"="#fb7286",
-                              "Lipid metabolism"="#ec2b2b",
-                              "Metabolism of cofactors and vitamins"="#ff9400",
-                              "Nucleotide metabolism"="#ffc200"), labels = function(x) str_wrap(x, width = 20))+
-  guides(fill = "none", alpha=guide_legend(override.aes = list(fill = "#82c236"), order=1))
-
+  scale_fill_manual(name = "Consistent \nprevalence across \nbee hosts", values=c("No"="#4e6e58", "Yes"="#c0c0c0"), labels=c("Yes","No"))
 ```
 
 ###Fig 5 - Multipanel 
