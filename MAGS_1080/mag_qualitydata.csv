@@ -1,0 +1,104 @@
+﻿MAG,MAG_genus,MAG_species,Completeness,Contamination,Completeness_Model_Used,Translation_Table_Used,Coding_Density,Contig_N50,Average_Gene_Length,Genome_Size,GC_Content,Total_Coding_Sequences,Additional_Notes,bee_id,host,host_type,site
+concoct_Bi_BB1_1_bin_47,Schmidhempelia,Schmidhempelia bombi,99.94,0.21,Neural Network (Specific Model),11,0.599,30400,248.462637,3738125,0.38,3011,None,Bi_BB1_1,biobest_imp,commercial,BioBest 1
+concoct_Bi_BB1_1_bin_8_sub,Lactobacillus,Lactobacillus panisapium,89.1,9.25,Neural Network (Specific Model),11,0.877,7716,256.463633,2347543,0.37,2681,None,Bi_BB1_1,biobest_imp,commercial,BioBest 1
+concoct_Bi_BB1_2_bin_34,Bifidobacterium,Bifidobacterium sp024104275,97.17,2.9,Neural Network (Specific Model),11,0.793,462243,315.6005133,2785266,0.56,2338,None,Bi_BB1_2,biobest_imp,commercial,BioBest 1
+concoct_Bi_BB3_1_bin_27_sub,Bifidobacterium,Bifidobacterium bohemicum,87.47,1.44,Neural Network (Specific Model),11,0.833,89312,323.0183631,2211298,0.53,1906,None,Bi_BB3_1,biobest_imp,commercial,BioBest 3
+concoct_Bi_BP_1_bin_25_sub,Fructobacillus,Fructobacillus tropaeoli,94.54,7.75,Neural Network (Specific Model),11,0.864,9792,264.0729865771812,2182532,0.43,2384,None,Bi_BP_1,wild_imp,wild,Bruce Pit
+concoct_Bi_BP_2_bin_2_sub,Snodgrassella,Snodgrassella communis,87.98,5.31,Neural Network (Specific Model),11,0.803,15031,275.0144422,2058848,0.42,2008,None,Bi_BP_2,wild_imp,wild,Bruce Pit
+concoct_Bi_CM_1_bin_37,Bifidobacterium,Bifidobacterium,86.41,3.07,Neural Network (Specific Model),11,0.87,41341,349.9068768,1681306,0.55,1396,None,Bi_CM_1,wild_imp,wild,Chapman Mills
+concoct_Bi_FG_1_bin_1,Arsenophonus,Arsenophonus apicola,81.95,0.37,Neural Network (Specific Model),11,0.843,213151,294.8418725,2841185,0.37,2713,None,Bi_FG_1,wild_imp,wild,Fletcher's Wildlife Garden
+concoct_Bi_FG_1_bin_16_sub,Fructobacillus,Fructobacillus fructosus,89.79,5.34,Neural Network (Specific Model),11,0.884,8547,256.789445,1598350,0.44,1838,None,Bi_FG_1,wild_imp,wild,Fletcher's Wildlife Garden
+concoct_Bi_KP2_1_bin_9,Bifidobacterium,Bifidobacterium bohemicum,90.31,0.24,Neural Network (Specific Model),11,0.794,50290,289.7922078,2102023,0.58,1925,None,Bi_KP2_1,kopper_imp,commercial,Koppert 2
+concoct_Bi_KP3_2_bin_22_sub,Bombilactobacillus,Bombilactobacillus bombi,92.61,3.36,Neural Network (Specific Model),11,0.883,204796,296.1429236,2157648,0.35,2148,None,Bi_KP3_2,kopper_imp,commercial,Koppert 3
+concoct_Bi_MB_2_bin_57,Arsenophonus,Arsenophonus apicola,85.31,0.46,Neural Network (Specific Model),11,0.839,177037,290.1434978,3001229,0.37,2899,None,Bi_MB_2,wild_imp,wild,Mer Bleue
+concoct_Bi_ML_1_bin_41,Arsenophonus,Arsenophonus apicola,99.93,0.55,Neural Network (Specific Model),11,0.836,172061,292.7174463,3316073,0.37,3164,None,Bi_ML_1,wild_imp,wild,Mud Lake
+concoct_Bi_PI_1_bin_38,Schmidhempelia,Schmidhempelia bombi,81.39,0.02,Neural Network (Specific Model),11,0.823,75925,315.4009351,1964122,0.37,1711,None,Bi_PI_1,wild_imp,wild,Petrie Island
+concoct_Br_ML_2_bin_77,Gilliamella,Gilliamella apicola_M,80.61,5.31,Gradient Boost (General Model),11,0.867,2439,229.7680744,2215496,0.34,2794,None,Br_ML_2,rufocinctus,wild,Mud Lake
+concoct_Bv_ML_2_bin_24,Gilliamella,Gilliamella bombi,89.63,6.73,Neural Network (Specific Model),11,0.851,3808,245.6662782,2224774,0.35,2574,None,Bv_ML_2,vagans,wild,Mud Lake
+maxbin2_Bi_BB1_2_bin.004_sub,Schmidhempelia,Schmidhempelia bombi,99.5,0.04,Neural Network (Specific Model),11,0.781,80925,311.523644,2401651,0.36,2009,None,Bi_BB1_2,biobest_imp,commercial,BioBest 1
+maxbin2_Bi_BB1_2_bin.005_sub,Lactobacillus,Lactobacillus,88.57,0.39,Neural Network (Specific Model),11,0.717,94950,283.3971463,1992064,0.34,1682,None,Bi_BB1_2,biobest_imp,commercial,BioBest 1
+maxbin2_Bi_BB1_2_bin.006,Bombilactobacillus,Bombilactobacillus bombi,85.4,3.65,Gradient Boost (General Model),11,0.586,1585,203.5612514,2758206,0.35,2653,None,Bi_BB1_2,biobest_imp,commercial,BioBest 1
+maxbin2_Bi_BB3_1_bin.002,Lactobacillus,Lactobacillus panisapium,99.97,4,Neural Network (Specific Model),11,0.875,126476,299.0800337,2430170,0.38,2374,None,Bi_BB3_1,biobest_imp,commercial,BioBest 3
+maxbin2_Bi_BB3_1_bin.003,Bifidobacterium,Bifidobacterium sp024104275,95.68,0.05,Neural Network (Specific Model),11,0.845,382949,364.5665138,2254610,0.56,1744,None,Bi_BB3_1,biobest_imp,commercial,BioBest 3
+maxbin2_Bi_BB3_2_bin.003,Schmidhempelia,Schmidhempelia bombi,99.94,2.17,Neural Network (Specific Model),11,0.764,57133,300.0017865,2633336,0.36,2239,None,Bi_BB3_2,biobest_imp,commercial,BioBest 3
+maxbin2_Bi_BP_1_bin.004,Snodgrassella,Snodgrassella communis,100,0.65,Neural Network (Specific Model),11,0.753,61652,247.8047091,2845714,0.42,2888,None,Bi_BP_1,wild_imp,wild,Bruce Pit
+maxbin2_Bi_BP_1_bin.007,Bifidobacterium,Bifidobacterium,95.22,3.26,Neural Network (Specific Model),11,0.8,10511,211.67448,2394805,0.5,3029,None,Bi_BP_1,wild_imp,wild,Bruce Pit
+maxbin2_Bi_BP_1_bin.009,Bifidobacterium,Bifidobacterium,96.64,0.16,Neural Network (Specific Model),11,0.863,214018,340.1948803,1430818,0.45,1211,None,Bi_BP_1,wild_imp,wild,Bruce Pit
+maxbin2_Bi_BP_1_bin.011_sub,Schmidhempelia,Schmidhempelia bombi,96.18,0.03,Neural Network (Specific Model),11,0.82,54498,311.799063,2189253,0.36,1921,None,Bi_BP_1,wild_imp,wild,Bruce Pit
+maxbin2_Bi_BP_2_bin.010_sub,Snodgrassella,Snodgrassella sp024103515,88.24,3.7,Neural Network (Specific Model),11,0.744,26785,259.8956754,2346132,0.4,2243,None,Bi_BP_2,wild_imp,wild,Bruce Pit
+maxbin2_Bi_BP_2_bin.017_sub,Bifidobacterium,Bifidobacterium,81.28,5.97,Gradient Boost (General Model),4,0.759,1242,176.7938234,3190884,0.47,4598,None,Bi_BP_2,wild_imp,wild,Bruce Pit
+maxbin2_Bi_CM_1_bin.013_sub,Bifidobacterium,Bifidobacterium,84.38,1.87,Neural Network (Specific Model),4,0.868,213850,247.8977035,1633412,0.43,1916,None,Bi_CM_1,wild_imp,wild,Chapman Mills
+maxbin2_Bi_CM_1_bin.015_sub,Schmidhempelia,Schmidhempelia bombi,99.08,3.16,Neural Network (Specific Model),11,0.758,50760,264.0469411,2711851,0.37,2599,None,Bi_CM_1,wild_imp,wild,Chapman Mills
+maxbin2_Bi_CM_1_bin.016_sub,Snodgrassella,Snodgrassella communis,89.45,0.19,Neural Network (Specific Model),4,0.805,27906,185.9372455,2877121,0.42,4175,None,Bi_CM_1,wild_imp,wild,Chapman Mills
+maxbin2_Bi_CM_1_bin.017,Lactobacillus,Lactobacillus bombicola,99.97,4.14,Neural Network (Specific Model),11,0.817,194751,265.2571162,2082214,0.35,2143,None,Bi_CM_1,wild_imp,wild,Chapman Mills
+maxbin2_Bi_CM_2_bin.005_sub,Arsenophonus,Arsenophonus apicola,98.51,2.67,Neural Network (Specific Model),11,0.762,213383,273.6660757,3638972,0.38,3384,None,Bi_CM_2,wild_imp,wild,Chapman Mills
+maxbin2_Bi_FG_1_bin.006_sub,Bifidobacterium,Bifidobacterium,98.7,2.74,Neural Network (Specific Model),11,0.804,128629,317.6819894,1571440,0.45,1327,None,Bi_FG_1,wild_imp,wild,Fletcher's Wildlife Garden
+maxbin2_Bi_FG_1_bin.007,Bifidobacterium,Bifidobacterium,98.73,0.09,Neural Network (Specific Model),11,0.854,47035,338.4897681,1740127,0.54,1466,None,Bi_FG_1,wild_imp,wild,Fletcher's Wildlife Garden
+maxbin2_Bi_FG_2_bin.002,Snodgrassella,Snodgrassella communis,89.49,6.72,Gradient Boost (General Model),11,0.841,1422,203.8938205,2959180,0.44,4078,None,Bi_FG_2,wild_imp,wild,Fletcher's Wildlife Garden
+maxbin2_Bi_KP1_1_bin.005,Snodgrassella,Snodgrassella communis,100,2.98,Neural Network (Specific Model),11,0.802,107150,296.8331797,2405528,0.43,2170,None,Bi_KP1_1,kopper_imp,commercial,Koppert 1
+maxbin2_Bi_KP1_2_bin.004,Bifidobacterium,Bifidobacterium,96.19,3.04,Neural Network (Specific Model),11,0.876,409991,335.941406,1469885,0.45,1280,None,Bi_KP1_2,kopper_imp,commercial,Koppert 1
+maxbin2_Bi_KP1_2_bin.006,Bifidobacterium,Bifidobacterium,93.23,8.07,Neural Network (Specific Model),11,0.866,73571,364.7975734,1976748,0.54,1566,None,Bi_KP1_2,kopper_imp,commercial,Koppert 1
+maxbin2_Bi_KP2_1_bin.008,Schmidhempelia,Schmidhempelia bombi,99.84,2.45,Neural Network (Specific Model),11,0.832,54450,310.8818182,2341593,0.36,2090,None,Bi_KP2_1,kopper_imp,commercial,Koppert 2
+maxbin2_Bi_KP2_1_bin.009,Lactobacillus,Lactobacillus,88.65,0,Neural Network (Specific Model),11,0.866,39161,286.2870906,1541987,0.34,1557,None,Bi_KP2_1,kopper_imp,commercial,Koppert 2
+maxbin2_Bi_KP2_1_bin.010_sub,Snodgrassella,Snodgrassella communis,100,0.16,Neural Network (Specific Model),11,0.813,125565,299.9398719,2241952,0.43,2029,None,Bi_KP2_1,kopper_imp,commercial,Koppert 2
+maxbin2_Bi_KP3_2_bin.003,Snodgrassella,Snodgrassella communis,100,3.12,Neural Network (Specific Model),11,0.746,82613,261.1940129,2765529,0.42,2639,None,Bi_KP3_2,kopper_imp,commercial,Koppert 3
+maxbin2_Bi_KP3_2_bin.009,Schmidhempelia,Schmidhempelia bombi,99.99,0.85,Neural Network (Specific Model),11,0.541,15243,211.7046498,4082490,0.36,3484,None,Bi_KP3_2,kopper_imp,commercial,Koppert 3
+maxbin2_Bi_KP3_2_bin.010,Bifidobacterium,Bifidobacterium bohemicum,96.53,0.84,Neural Network (Specific Model),11,0.793,244416,289.6558326,2455222,0.58,2246,None,Bi_KP3_2,kopper_imp,commercial,Koppert 3
+maxbin2_Bi_MB_2_bin.006_sub,Gilliamella,Gilliamella apicola_M,89.27,3.74,Neural Network (Specific Model),11,0.863,16138,289.7302384,2404010,0.35,2391,None,Bi_MB_2,wild_imp,wild,Mer Bleue
+maxbin2_Bi_ML_1_bin.014_sub,Apibacter,Apibacter mensalis,100,2.16,Gradient Boost (General Model),11,0.74,122207,237.5664238,3426451,0.33,3568,None,Bi_ML_1,wild_imp,wild,Mud Lake
+maxbin2_Bi_ML_2_bin.006,Snodgrassella,Snodgrassella communis,100,0.12,Neural Network (Specific Model),11,0.79,59694,275.1296137,2430532,0.42,2330,None,Bi_ML_2,wild_imp,wild,Mud Lake
+maxbin2_Bi_ML_2_bin.007,Bifidobacterium,Bifidobacterium,97.7,0.28,Neural Network (Specific Model),11,0.851,870156,330.422386,1423888,0.45,1224,None,Bi_ML_2,wild_imp,wild,Mud Lake
+maxbin2_Br_CM_1_bin.004,Snodgrassella,Snodgrassella communis,100,0.37,Neural Network (Specific Model),11,0.819,112837,299.264039,2223256,0.43,2030,None,Br_CM_1,rufocinctus,wild,Chapman Mills
+maxbin2_Br_CM_1_bin.008,Gilliamella,Gilliamella bombi,89.27,3.14,Neural Network (Specific Model),11,0.775,11148,265.9065676,2627157,0.35,2558,None,Br_CM_1,rufocinctus,wild,Chapman Mills
+maxbin2_Br_CM_1_bin.015,Apibacter,Apibacter,100,0.06,Neural Network (Specific Model),11,0.824,156492,302.2624176,2499226,0.3,2275,None,Br_CM_1,rufocinctus,wild,Chapman Mills
+maxbin2_Br_CM_1_bin.017_sub,Snodgrassella,Snodgrassella sp024103515,86.61,5.62,Neural Network (Specific Model),11,0.676,17658,229.0503501,3039977,0.41,2999,None,Br_CM_1,rufocinctus,wild,Chapman Mills
+maxbin2_Br_FG_1_bin.002_sub,Apibacter,Apibacter,100,1.79,Gradient Boost (General Model),11,0.315,865,89.67023087,19413964,0.32,22913,None,Br_FG_1,rufocinctus,wild,Fletcher's Wildlife Garden
+maxbin2_Br_FG_1_bin.006_sub,Arsenophonus,Arsenophonus apicola,92.52,0.16,Neural Network (Specific Model),11,0.824,42253,306.3662632,2853158,0.37,2561,None,Br_FG_1,rufocinctus,wild,Fletcher's Wildlife Garden
+maxbin2_Br_FG_2_bin.003,Gilliamella,Gilliamella apicola_A,94.45,0.02,Neural Network (Specific Model),11,0.622,63488,247.5445822,2979196,0.34,2501,None,Br_FG_2,rufocinctus,wild,Fletcher's Wildlife Garden
+maxbin2_Br_FG_2_bin.004,Apibacter,Apibacter mensalis,100,0.19,Gradient Boost (General Model),11,0.335,1045,109.5958163,11020359,0.3,11282,None,Br_FG_2,rufocinctus,wild,Fletcher's Wildlife Garden
+maxbin2_Br_ML_1_bin.004,Bifidobacterium,Bifidobacterium,99.88,0.34,Neural Network (Specific Model),11,0.589,5131,190.9806154,3144896,0.44,3250,None,Br_ML_1,rufocinctus,wild,Mud Lake
+maxbin2_Br_ML_1_bin.005,Snodgrassella,Snodgrassella communis,100,0.31,Neural Network (Specific Model),11,0.819,119943,294.5046812,2416167,0.43,2243,None,Br_ML_1,rufocinctus,wild,Mud Lake
+maxbin2_Bt_MB_2_bin.001,Bifidobacterium,Bifidobacterium,95.39,0.07,Neural Network (Specific Model),11,0.683,51237,232.0380413,2509298,0.44,2471,None,Bt_MB_2,ternarius,wild,Mer Bleue
+maxbin2_Bt_MB_2_bin.002,Gilliamella,Gilliamella bombi,100,0.46,Neural Network (Specific Model),11,0.617,18642,229.589624,3822402,0.35,3431,None,Bt_MB_2,ternarius,wild,Mer Bleue
+maxbin2_Bt_MB_2_bin.003,Snodgrassella,Snodgrassella communis,100,0.79,Neural Network (Specific Model),11,0.819,105668,295.7324009,2321983,0.43,2145,None,Bt_MB_2,ternarius,wild,Mer Bleue
+maxbin2_Bt_MB_2_bin.004,Bifidobacterium,Bifidobacterium,99.68,0.15,Neural Network (Specific Model),11,0.828,264752,275.7262684,2432687,0.54,2444,None,Bt_MB_2,ternarius,wild,Mer Bleue
+maxbin2_Bv_ML_2_bin.003,Schmidhempelia,Schmidhempelia bombi,99.94,0.01,Neural Network (Specific Model),11,0.648,39872,274.9713782,2886607,0.36,2271,None,Bv_ML_2,vagans,wild,Mud Lake
+metabat2_Bi_BB1_1_bin_.6_sub,Bombilactobacillus,Bombilactobacillus bombi,95.36,1.36,Neural Network (Specific Model),11,0.895,27714,298.9311927,1744493,0.35,1744,None,Bi_BB1_1,biobest_imp,commercial,BioBest 1
+metabat2_Bi_BB3_2_bin_.3,Bifidobacterium,Bifidobacterium sp024104275,95.63,0.04,Neural Network (Specific Model),11,0.849,1278832,365.299712,2235806,0.56,1735,None,Bi_BB3_2,biobest_imp,commercial,BioBest 3
+metabat2_Bi_BB3_2_bin_.5_sub,Lactobacillus,Lactobacillus,80.68,0.18,Neural Network (Specific Model),11,0.878,47747,307.8424045,1292368,0.34,1231,None,Bi_BB3_2,biobest_imp,commercial,BioBest 3
+metabat2_Bi_BP_1_bin_.18,Gilliamella,Gilliamella bombi,99.98,3.24,Neural Network (Specific Model),11,0.853,31264,295.2370983,2128979,0.34,2054,None,Bi_BP_1,wild_imp,wild,Bruce Pit
+metabat2_Bi_BP_1_bin_.6,Lactobacillus,Lactobacillus bombicola,84.48,0.11,Neural Network (Specific Model),11,0.876,233793,304.3368263,1389575,0.35,1336,None,Bi_BP_1,wild_imp,wild,Bruce Pit
+metabat2_Bi_BP_2_bin_.2,Lactobacillaceae CALYQJ01,Lactobacillaceae CALYQJ01,82.94,0.03,Neural Network (Specific Model),11,0.879,156984,298.5847872,1455606,0.34,1433,None,Bi_BP_2,wild_imp,wild,Bruce Pit
+metabat2_Bi_BP_2_bin_.7,Lactobacillus,Lactobacillus bombicola,86.53,3.32,Neural Network (Specific Model),11,0.882,16954,286.2492877,1365209,0.35,1404,None,Bi_BP_2,wild_imp,wild,Bruce Pit
+metabat2_Bi_CM_2_bin_.4,Schmidhempelia,Schmidhempelia bombi,84.15,0.02,Neural Network (Specific Model),11,0.824,71343,327.1566646,1884848,0.36,1583,None,Bi_CM_2,wild_imp,wild,Chapman Mills
+metabat2_Bi_CM_2_bin_.6,Snodgrassella,Snodgrassella communis,80.65,0.05,Neural Network (Specific Model),11,0.813,120996,298.3585468,1846370,0.43,1679,None,Bi_CM_2,wild_imp,wild,Chapman Mills
+metabat2_Bi_FG_1_bin_.11,Lactobacillaceae CALYQJ01,Lactobacillaceae CALYQJ01,83.13,0.02,Neural Network (Specific Model),11,0.875,135688,301.3264075,1538039,0.35,1492,None,Bi_FG_1,wild_imp,wild,Fletcher's Wildlife Garden
+metabat2_Bi_FG_1_bin_.8,Snodgrassella,Snodgrassella communis,88.26,0.18,Neural Network (Specific Model),11,0.813,122196,296.9681698,2061510,0.42,1885,None,Bi_FG_1,wild_imp,wild,Fletcher's Wildlife Garden
+metabat2_Bi_FG_2_bin_.11,Lactobacillus,Lactobacillus bombicola,84.02,0.05,Neural Network (Specific Model),11,0.894,53793,318.526971,1285767,0.35,1205,None,Bi_FG_2,wild_imp,wild,Fletcher's Wildlife Garden
+metabat2_Bi_FG_2_bin_.14,Bifidobacterium,Bifidobacterium,95.62,0.02,Neural Network (Specific Model),11,0.89,376557,361.4205607,1302110,0.45,1070,None,Bi_FG_2,wild_imp,wild,Fletcher's Wildlife Garden
+metabat2_Bi_FG_2_bin_.9,Gilliamella,Gilliamella bombi,98.48,1.89,Neural Network (Specific Model),11,0.856,18802,278.8852584,2567496,0.34,2632,None,Bi_FG_2,wild_imp,wild,Fletcher's Wildlife Garden
+metabat2_Bi_KP1_1_bin_.5,Lactobacillus,Lactobacillus bombicola,93.4,0.02,Neural Network (Specific Model),11,0.875,50790,300.0512091,1443865,0.34,1406,None,Bi_KP1_1,kopper_imp,commercial,Koppert 1
+metabat2_Bi_KP1_2_bin_.3,Snodgrassella,Snodgrassella communis,85.52,1.43,Neural Network (Specific Model),11,0.832,15876,290.3689376,1810849,0.43,1732,None,Bi_KP1_2,kopper_imp,commercial,Koppert 1
+metabat2_Bi_KP1_2_bin_.4,Bifidobacterium,Bifidobacterium sp024104275,88.03,0.08,Neural Network (Specific Model),11,0.851,55442,360.0919336,2138339,0.56,1686,None,Bi_KP1_2,kopper_imp,commercial,Koppert 1
+metabat2_Bi_KP1_2_bin_.6,Schmidhempelia,Schmidhempelia bombi,86.86,0.01,Neural Network (Specific Model),11,0.824,65393,316.1951081,2021326,0.36,1758,None,Bi_KP1_2,kopper_imp,commercial,Koppert 1
+metabat2_Bi_KP1_2_bin_.7,Lactobacillus,Lactobacillus bombicola,92.26,0.09,Neural Network (Specific Model),11,0.875,60706,304.3098095,1475426,0.34,1417,None,Bi_KP1_2,kopper_imp,commercial,Koppert 1
+metabat2_Bi_KP2_2_bin_.15,Bifidobacterium,Bifidobacterium,93.02,0.19,Neural Network (Specific Model),11,0.893,940757,360.447789,1285085,0.45,1063,None,Bi_KP2_2,kopper_imp,commercial,Koppert 2
+metabat2_Bi_KP3_2_bin_.19,Bifidobacterium,Bifidobacterium,92.93,0.19,Neural Network (Specific Model),11,0.892,264231,360.7867299,1278799,0.45,1055,None,Bi_KP3_2,kopper_imp,commercial,Koppert 3
+metabat2_Bi_MB_1_bin_.2,Apibacter,Apibacter mensalis,95.35,2.14,Gradient Boost (General Model),11,0.863,13050,293.9645725,2161334,0.3,2117,None,Bi_MB_1,wild_imp,wild,Mer Bleue
+metabat2_Bi_MB_1_bin_.4,Snodgrassella,Snodgrassella sp024103515,84.57,4.12,Neural Network (Specific Model),11,0.728,6845,241.969697,2232375,0.39,2244,None,Bi_MB_1,wild_imp,wild,Mer Bleue
+metabat2_Bi_MB_1_bin_.5,Gilliamella,Gilliamella apicola_M,99.91,0.22,Neural Network (Specific Model),11,0.869,29595,295.9429038,2502374,0.35,2452,None,Bi_MB_1,wild_imp,wild,Mer Bleue
+metabat2_Bi_MB_2_bin_.1,Snodgrassella,Snodgrassella sp024103515,88.67,0.04,Neural Network (Specific Model),11,0.726,44834,276.6999498,2275372,0.4,1993,None,Bi_MB_2,wild_imp,wild,Mer Bleue
+metabat2_Bi_MB_2_bin_.11,Apibacter,Apibacter mensalis,99.99,0.04,Neural Network (Specific Model),11,0.87,166001,319.271826,2330553,0.3,2119,None,Bi_MB_2,wild_imp,wild,Mer Bleue
+metabat2_Bi_MB_2_bin_.2,Schmidhempelia,Schmidhempelia bombi,99.66,0.12,Neural Network (Specific Model),11,0.826,61328,318.7517501,2148061,0.36,1857,None,Bi_MB_2,wild_imp,wild,Mer Bleue
+metabat2_Bi_MB_2_bin_.3,Lactobacillus,Lactobacillus bombicola,96.09,0.97,Neural Network (Specific Model),11,0.872,104731,301.1332034,1591478,0.34,1539,None,Bi_MB_2,wild_imp,wild,Mer Bleue
+metabat2_Bi_MB_2_bin_.4,Bifidobacterium,Bifidobacterium,81.59,0.06,Neural Network (Specific Model),11,0.895,12167,334.6267748,1104501,0.45,986,None,Bi_MB_2,wild_imp,wild,Mer Bleue
+metabat2_Bi_ML_1_bin_.10,Gilliamella,Gilliamella apicola_A,99.96,1.61,Neural Network (Specific Model),11,0.859,35617,307.3609183,2008495,0.34,1873,None,Bi_ML_1,wild_imp,wild,Mud Lake
+metabat2_Bi_ML_1_bin_.13,Bifidobacterium,Bifidobacterium,96.36,0.14,Neural Network (Specific Model),11,0.892,724967,361.6554702,1265273,0.45,1042,None,Bi_ML_1,wild_imp,wild,Mud Lake
+metabat2_Bi_ML_1_bin_.3,Lactobacillus,Lactobacillus bombicola,96.4,0.03,Neural Network (Specific Model),11,0.873,202754,305.2493036,1504699,0.35,1436,None,Bi_ML_1,wild_imp,wild,Mud Lake
+metabat2_Bi_ML_2_bin_.12_sub,Gilliamella,Gilliamella apicola_A,80.29,0.91,Neural Network (Specific Model),11,0.849,25069,297.32799,1701330,0.34,1622,None,Bi_ML_2,wild_imp,wild,Mud Lake
+metabat2_Bi_ML_2_bin_.3,Apibacter,Apibacter mensalis,99.99,0.04,Neural Network (Specific Model),11,0.869,210553,325.6523904,2254299,0.3,2008,None,Bi_ML_2,wild_imp,wild,Mud Lake
+metabat2_Bi_ML_2_bin_.9,Lactobacillus,Lactobacillus bombicola,99.37,0.18,Neural Network (Specific Model),11,0.878,217996,307.3331152,1601729,0.35,1528,None,Bi_ML_2,wild_imp,wild,Mud Lake
+metabat2_Bi_PI_2_bin_.1,Schmidhempelia,Schmidhempelia bombi,81.41,0.02,Neural Network (Specific Model),11,0.825,72053,323.9383202,1793952,0.36,1524,None,Bi_PI_2,wild_imp,wild,Petrie Island
+metabat2_Br_CM_1_bin_.1,Bifidobacterium,Bifidobacterium,95.37,0.13,Neural Network (Specific Model),11,0.891,894561,367.0526316,1243632,0.45,1007,None,Br_CM_1,rufocinctus,wild,Chapman Mills
+metabat2_Br_FG_1_bin_.6,Gilliamella,Gilliamella apicola_A,100,0.01,Neural Network (Specific Model),11,0.857,95755,315.8280992,2005260,0.34,1815,None,Br_FG_1,rufocinctus,wild,Fletcher's Wildlife Garden
+metabat2_Bt_CM_1_bin_.3,Schmidhempelia,Schmidhempelia bombi,99.22,0.61,Neural Network (Specific Model),11,0.827,19515,308.1646739,2054253,0.36,1840,None,Bt_CM_1,ternarius,wild,Chapman Mills
