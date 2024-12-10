@@ -3440,7 +3440,7 @@ Anova(unmap_model2_rank, type=3)
 
 ##Community structure phylotypes
 
-###All spechostsies
+###All hosts
 
 ```{r}
 adonis_allsp1 <- adonis2(cov_drep1070_pcoabray_matrix ~ sub_species, 
@@ -3888,6 +3888,23 @@ Anova(magshann_model2, type=3, singular.ok = TRUE)
 magshann_model2_rank <- aov(rank(value) ~ species+site_general, data = cov_drep1070_MAG_shann_data_wild)
 
 Anova(magshann_model2_rank, type = 3)
+```
+
+
+##KEGG module structure of phylotypes
+
+```{r}
+adonis_metab_mod <- adonis2(metab_1080_pcoajacc_matrix ~ species_cluster2, 
+                         metab_1080_pcoajacc_data, 
+                         permutations = 9999, 
+                         by = "terms")
+
+adonis_metab_mod
+
+
+betadisp <- betadisper(metab_1080_pcoajacc_matrix, metab_1080_pcoajacc_data$species_cluster2, type = "median")
+
+permutest(betadisp, permutations = 9999)
 ```
 
 
